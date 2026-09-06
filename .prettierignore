@@ -1,0 +1,17 @@
+node_modules
+.next
+out
+coverage
+playwright-report
+test-results
+next-env.d.ts
+package-lock.json
+content
+director-handoff-return
+director-handoff-return-v2
+handoff
+public
+tests/fixtures
+aigc_project.rar
+tmp
+docs
