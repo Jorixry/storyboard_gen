@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://storyboard-director.local/schema/shot-template.schema.json",
+  "title": "Storyboard Director Shot Template",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "reviewStatus",
+    "display",
+    "scene",
+    "characters",
+    "camera",
+    "movement",
+    "directorRuleIds",
+    "promptSemantics",
+    "acceptance"
+  ],
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "cameraPose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "target", "focalLengthMm"],
+      "properties": {
+        "position": { "$ref": "#/$defs/vec3" },
+        "target": { "$ref": "#/$defs/vec3" },
+        "focalLengthMm": { "type": "number", "minimum": 12, "maximum": 200 }
+      }
+    },
+    "semanticList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:_[a-z0-9]+)*$"
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "reviewStatus": {
+      "enum": [
+        "draft",
+        "engineering_placeholder",
+        "engineering_ready",
+        "director_review",
+        "approved",
+        "deprecated"
+      ]
+    },
+    "display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nameZh",
+        "plainDescriptionZh",
+        "narrativePurposeZh",
+        "emotionalEffectsZh",
+        "whenToUseZh",
+        "referenceImage",
+        "referenceRightsNote"
+      ],
+      "properties": {
+        "nameZh": { "type": "string", "minLength": 1 },
+        "plainDescriptionZh": { "type": "string", "minLength": 1 },
+        "narrativePurposeZh": { "type": "string", "minLength": 1 },
+        "emotionalEffectsZh": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "whenToUseZh": { "type": "string", "minLength": 1 },
+        "whenNotToUseZh": { "type": "string" },
+        "referenceImage": { "type": "string", "minLength": 1 },
+        "referenceRightsNote": { "type": "string", "minLength": 1 }
+      }
+    },
+    "scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["presetId", "aspectRatio"],
+      "properties": {
+        "presetId": { "const": "dialogue_room" },
+        "aspectRatio": { "enum": ["9:16", "16:9"] }
+      }
+    },
+    "characters": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "position", "rotationYDeg"],
+        "properties": {
+          "id": { "enum": ["character_a", "character_b"] },
+          "position": { "$ref": "#/$defs/vec3" },
+          "rotationYDeg": { "type": "number", "minimum": -360, "maximum": 360 }
+        }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "target", "focalLengthMm", "shotSize"],
+      "properties": {
+        "position": { "$ref": "#/$defs/vec3" },
+        "target": { "$ref": "#/$defs/vec3" },
+        "focalLengthMm": { "type": "number", "minimum": 12, "maximum": 200 },
+        "shotSize": {
+          "enum": [
+            "wide",
+            "full",
+            "medium_two_shot",
+            "medium",
+            "medium_close_up",
+            "close_up",
+            "insert"
+          ]
+        }
+      }
+    },
+    "movement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "start", "end", "durationSeconds", "easing"],
+      "properties": {
+        "type": {
+          "enum": ["static", "dolly_in", "dolly_out", "truck_left", "truck_right"]
+        },
+        "start": { "$ref": "#/$defs/cameraPose" },
+        "end": { "$ref": "#/$defs/cameraPose" },
+        "durationSeconds": { "type": "number", "minimum": 0.5, "maximum": 20 },
+        "easing": { "enum": ["linear", "ease_in_out"] }
+      }
+    },
+    "directorRuleIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:_[a-z0-9]+)*$"
+      },
+      "uniqueItems": true
+    },
+    "promptSemantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subjects", "composition", "optics", "motion", "continuity"],
+      "properties": {
+        "subjects": { "$ref": "#/$defs/semanticList" },
+        "composition": { "$ref": "#/$defs/semanticList" },
+        "optics": { "$ref": "#/$defs/semanticList" },
+        "motion": { "$ref": "#/$defs/semanticList" },
+        "continuity": { "$ref": "#/$defs/semanticList" }
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "directorNotes": { "type": "string" }
+  }
+}

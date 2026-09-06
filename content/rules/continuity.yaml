@@ -1,0 +1,38 @@
+schemaVersion: 1
+reviewStatus: engineering_ready
+
+rules:
+  - id: maintain_axis
+    nameZh: 保持轴线
+    userExplanationZh: 相机与运镜全程保持在两名角色连线的同一侧（180度规则），避免画面方向突然反转
+    severity: warning
+    implementationStatus: planned
+    directorNotes: 规则说明和容许范围待项目发起人审核；v2 交接新增量化口径为运镜全程不跨轴
+
+  - id: preserve_eyeline
+    nameZh: 保持视线关系
+    userExplanationZh: 调整机位后仍让双方视线方向在剪辑中保持一致，正反打两镜的视线在屏幕上相交
+    severity: warning
+    implementationStatus: planned
+    directorNotes: 需要导演定义可计算的验收范围
+
+  - id: foreground_shoulder_frame
+    nameZh: 保留前景肩部框景
+    userExplanationZh: 过肩镜头中保留对方后脑与肩部作为虚化前景，占画面约1/4-1/3，不露侧脸不露躯干，且前景位置全程保持一致
+    severity: info
+    implementationStatus: planned
+    directorNotes: 前景占比验收线为1/4-1/3（知识图谱v1.1经典OTS口径，区别于脏单人镜头的≤15%）；口径来自v2导演交接，待项目发起人复核
+
+  - id: balanced_two_shot
+    nameZh: 双人镜头均衡
+    userExplanationZh: 双人中景中两人腰部以上同时入画、占比相当、头部同高，任一方不超过画面约40%
+    severity: warning
+    implementationStatus: planned
+    directorNotes: 40%与头部同高为v2交接新增量化验收线（知识图谱v1.1口径），待项目发起人复核
+
+  - id: matched_reverse_pair
+    nameZh: 正反打配对一致
+    userExplanationZh: 过肩正反打两镜成对出现，景别、焦距、曝光、白平衡、光线方向五要素保持一致，两镜视线方向在屏幕上相交
+    severity: warning
+    implementationStatus: planned
+    directorNotes: 曝光、白平衡、光线方向为固定场景与评审约束，不作为用户可编辑控制项；规则来自v2导演交接的配对验收口径，待项目发起人复核

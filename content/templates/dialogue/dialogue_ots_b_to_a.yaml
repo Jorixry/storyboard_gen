@@ -1,0 +1,84 @@
+id: dialogue_ots_b_to_a
+version: 1
+reviewStatus: engineering_ready
+
+display:
+  nameZh: 角色B过肩拍角色A
+  plainDescriptionZh: 从角色B的肩后观察角色A，A是视觉重点，B的肩与后脑虚化作为前景
+  narrativePurposeZh: 强调A的表情反应，与 dialogue_ots_a_to_b 互为反打，构成对话戏的正反打结构，两镜通过视线匹配缝合为对视
+  emotionalEffectsZh:
+    - 亲密
+    - 对峙
+    - 压迫
+  whenToUseZh: 两人对话中需要突出角色A的反应时；与 dialogue_ots_a_to_b 配对构成完整正反打时
+  whenNotToUseZh: 需要完全孤立角色A或隐藏角色B时（应切A的单人镜头）；需要强调双方同等地位时（应用双人中景）
+  referenceImage: /reference-images/dialogue_ots_b_to_a.png
+  referenceRightsNote: 本项目 AI 生成资产（即梦，写实电影感）；原始合成图 dialogue_ots_pair_combined.jpg 由项目发起人提供并声明自有可商用，本图为拆分派生裁切（上半为 B→A、下半为 A→B，本图取上半）；approved 或公开使用前仍需独立法律核验
+
+scene:
+  presetId: dialogue_room
+  aspectRatio: "16:9"
+
+characters:
+  - id: character_a
+    position: [-0.8, 0.0, 0.0]
+    rotationYDeg: 90
+  - id: character_b
+    position: [0.8, 0.0, 0.0]
+    rotationYDeg: -90
+
+camera:
+  position: [1.25, 1.7, 2.0]
+  target: [-0.8, 1.55, 0.0]
+  focalLengthMm: 50
+  shotSize: medium_close_up
+
+movement:
+  type: dolly_in
+  start:
+    position: [1.25, 1.7, 2.0]
+    target: [-0.8, 1.55, 0.0]
+    focalLengthMm: 50
+  end:
+    position: [1.05, 1.68, 1.4]
+    target: [-0.8, 1.55, 0.0]
+    focalLengthMm: 50
+  durationSeconds: 4
+  easing: ease_in_out
+
+directorRuleIds:
+  - maintain_axis
+  - preserve_eyeline
+  - foreground_shoulder_frame
+  - matched_reverse_pair
+
+promptSemantics:
+  subjects:
+    - character_a_primary
+    - character_b_shoulder_soft_foreground
+  composition:
+    - over_the_shoulder
+    - character_b_shoulder_right_foreground
+    - character_a_chest_up_framing
+    - eyes_upper_third
+  optics:
+    - medium_close_up
+    - focal_50mm
+    - soft_foreground
+  motion:
+    - subtle_dolly_in
+  continuity:
+    - maintain_axis
+    - preserve_eyeline
+    - foreground_shoulder_frame
+    - matched_reverse_pair
+
+acceptance:
+  - 前景B后脑与肩占画面约1/4-1/3、虚化、不露侧脸不露躯干
+  - A胸部以上入画，双眼位于画面上三分之一附近
+  - A面部清晰可读、为主要对焦对象
+  - 运镜全程未跨越两人对话轴线
+  - 前景B肩部位置全程保持一致
+  - 与同场反打镜头 dialogue_ots_a_to_b 的视线方向在屏幕上相交
+
+directorNotes: 来源为 v2 导演交接包 shot-template-intake.csv。参考图溯源：/reference-images/dialogue_ots_b_to_a.png 已由项目发起人跟进的 dialogue_ots_pair_combined.jpg 成功拆分落盘（上半为 B→A，下半为 A→B，本模板取上半），是已交付的工程资产；该拆分配对图同时解决了v2交接条目原用 L4-4-srs-A.jpg 干净近景（前景无肩）与带前景肩配对口径之间的冲突。默认运镜暂定为约4秒缓慢推近（dolly_in，ease_in_out），起点保留更多B肩部、终点更强调A表情；v2交接同样允许固定机位，默认运镜待项目发起人确认。前景占比口径由v1的≤15%修正为经典OTS验收线1/4-1/3（≤15%为脏单人口径，知识图谱v1.1已明确区分）。屏幕方向以v2参考图为准（B肩在画面右侧），与v1包镜像相反。50mm依据知识图谱F3（对话与表演默认焦段）。与 dialogue_ots_a_to_b 构成正反打配对，机位镜像对称，两镜景别、焦距、曝光、白平衡、光线方向必须一致；曝光、白平衡、光线方向为固定场景与评审约束，不作为可编辑控制项。角色A（35岁男）与角色B（30岁女）的身份、年龄与定妆信息仅为提示词与参考图语境，3D场景使用通用假人，不支持身份一致性。本模板为 engineering_ready，改为 approved 前必须经项目发起人审核。

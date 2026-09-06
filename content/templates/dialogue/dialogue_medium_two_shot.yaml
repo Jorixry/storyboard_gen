@@ -1,0 +1,81 @@
+id: dialogue_medium_two_shot
+version: 1
+reviewStatus: engineering_ready
+
+display:
+  nameZh: 双人中景
+  plainDescriptionZh: 两人同时入画、腰部以上的中景画面，两人占比相当，两人的关系本身成为画面主体
+  narrativePurposeZh: 同时呈现对话双方与他们之间的关系（亲密、对立、同盟），让观众实时看到说者与听者的反应，无需剪辑介入
+  emotionalEffectsZh:
+    - 亲密
+    - 同盟
+    - 对峙
+  whenToUseZh: 关系确立或转折的时刻（相恋、结盟、谈判破裂）；需要同时看见说的人与听的人实时反应的段落；搭档与双雄类型段落的默认构图
+  whenNotToUseZh: 需要放大单人面部情绪时（应切单人近景）；需要强调某一方压倒性地位时
+  referenceImage: /reference-images/L4-2-two-shot-01.jpg
+  referenceRightsNote: 本项目 AI 生成资产（即梦，写实电影感），自有可商用；GitHub 公开仓库 raw 托管、无需鉴权 https://raw.githubusercontent.com/yjk1212/shot-kb-reference-images/main/L4/L4-2-two-shot-01.jpg
+
+scene:
+  presetId: dialogue_room
+  aspectRatio: "16:9"
+
+characters:
+  - id: character_a
+    position: [-0.8, 0.0, 0.0]
+    rotationYDeg: 90
+  - id: character_b
+    position: [0.8, 0.0, 0.0]
+    rotationYDeg: -90
+
+camera:
+  position: [0.0, 1.6, 3.4]
+  target: [0.0, 1.55, 0.0]
+  focalLengthMm: 35
+  shotSize: medium_two_shot
+
+movement:
+  type: static
+  start:
+    position: [0.0, 1.6, 3.4]
+    target: [0.0, 1.55, 0.0]
+    focalLengthMm: 35
+  end:
+    position: [0.0, 1.6, 3.4]
+    target: [0.0, 1.55, 0.0]
+    focalLengthMm: 35
+  durationSeconds: 4
+  easing: linear
+
+directorRuleIds:
+  - maintain_axis
+  - preserve_eyeline
+  - balanced_two_shot
+
+promptSemantics:
+  subjects:
+    - character_a_and_character_b_equal_prominence
+  composition:
+    - medium_two_shot
+    - waist_up_framing
+    - side_eye_level_view
+    - heads_at_same_height
+    - balanced_left_right
+  optics:
+    - focal_35mm
+    - eye_level
+  motion:
+    - static_camera
+  continuity:
+    - maintain_axis
+    - preserve_eyeline
+    - balanced_two_shot
+
+acceptance:
+  - 两人腰部以上同时完整入画
+  - 左右均衡，任一方不超过画面约40%
+  - 平视且两人头部同高
+  - 两人面部均清晰可读
+  - 两人之间的物理间距清晰可辨
+  - 相机未越过两人对话轴线
+
+directorNotes: 来源为 v2 导演交接包 shot-template-intake.csv。参考图由v1公有领域宣传照换为本项目 AI 生成资产（咖啡馆场景，L4-2-two-shot-01.jpg）。新增左右均衡40%与头部同高两条量化验收线（知识图谱v1.1口径）。默认运镜暂定为固定机位（static，起点终点一致，时长4秒）；v2交接允许按剧情改为4-6秒缓慢推近，默认运镜待项目发起人确认后再调整。角色A（35岁男）与角色B（30岁女）的年龄与定妆信息仅为提示词与参考图语境，3D场景使用通用假人，不支持身份一致性。曝光、白平衡、光线方向为固定场景与评审约束，不作为可编辑控制项。本模板为 engineering_ready，改为 approved 前必须经项目发起人审核。

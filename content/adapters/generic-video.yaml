@@ -1,0 +1,27 @@
+id: generic_video
+version: 1
+status: engineering_placeholder
+descriptionZh: 模型无关的语义输出；用于调试和人工检查，不代表任何具体厂商最佳实践
+
+ordering:
+  - subjects
+  - composition
+  - optics
+  - motion
+  - continuity
+
+constraints:
+  preserveStructuredFacts: true
+  allowLlmPolish: true
+  llmMayChange:
+    - wording
+    - grammar
+  llmMayNotChange:
+    - character_identity
+    - character_position
+    - camera_geometry
+    - focal_length
+    - movement_type
+    - continuity_rules
+
+directorNotes: Seedance等具体适配器必须经过目标模型技术验证后另建版本化文件
