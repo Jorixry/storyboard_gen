@@ -1,0 +1,64 @@
+id: fixture_minimal_two_shot
+version: 1
+reviewStatus: engineering_placeholder
+
+display:
+  nameZh: 测试双人镜头
+  plainDescriptionZh: 测试用最小双人镜头模板
+  narrativePurposeZh: 验证内容管线正例
+  emotionalEffectsZh:
+    - 中性
+  whenToUseZh: 测试
+  referenceImage: /reference-images/fixture.png
+  referenceRightsNote: 测试fixture
+
+scene:
+  presetId: dialogue_room
+  aspectRatio: "16:9"
+
+characters:
+  - id: character_a
+    position: [-0.8, 0.0, 0.0]
+    rotationYDeg: 90
+  - id: character_b
+    position: [0.8, 0.0, 0.0]
+    rotationYDeg: -90
+
+camera:
+  position: [0.0, 1.6, 3.4]
+  target: [0.0, 1.55, 0.0]
+  focalLengthMm: 35
+  shotSize: medium_two_shot
+
+movement:
+  type: static
+  start:
+    position: [0.0, 1.6, 3.4]
+    target: [0.0, 1.55, 0.0]
+    focalLengthMm: 35
+  end:
+    position: [0.0, 1.6, 3.4]
+    target: [0.0, 1.55, 0.0]
+    focalLengthMm: 35
+  durationSeconds: 4
+  easing: linear
+
+directorRuleIds:
+  - maintain_axis
+
+promptSemantics:
+  subjects:
+    - character_a_and_character_b_equal_prominence
+  composition:
+    - medium_two_shot
+  optics:
+    - focal_35mm
+  motion:
+    - static_camera
+  continuity:
+    - maintain_axis
+
+acceptance:
+  - 验收条目一
+
+directorNotes: 测试fixture备注

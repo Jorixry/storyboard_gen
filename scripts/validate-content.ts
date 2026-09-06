@@ -1,48 +1,42 @@
 /**
- * Placeholder content-validation entry point (Prompt 1 / Phase 1 Day 1).
+ * Strict content validation entry point (Prompt 2 / Phase 1 Day 2).
  *
- * This is NOT the content Schema compiler. The full YAML validation against
- * content/schema/shot-template.schema.json is implemented in Prompt 2
- * (Phase 1 Day 2). This command only proves the wiring exists and reports
- * which content files are present so the later compiler has a stable entry.
+ * Validates every template YAML file under content/templates/ against
+ * content/schema/shot-template.schema.json (Ajv, draft 2020-12, unknown
+ * fields rejected), the equivalent Zod domain schema and the rule universe
+ * in content/rules/. Exits non-zero when any file fails; errors are reported
+ * with file, field path and reason, never downgraded or swallowed.
+ *
+ * Pipeline relationship: validate:content is the gate for compile:content,
+ * and build runs compile:content first, so a build cannot proceed from
+ * invalid content.
  */
 
-import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
-const CONTENT_DIR = path.resolve(process.cwd(), "content");
-
-async function collectFiles(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const files: string[] = [];
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await collectFiles(full)));
-    } else {
-      files.push(path.relative(CONTENT_DIR, full));
-    }
-  }
-  return files;
-}
+import { formatIssue } from "../src/domain/errors";
+import { validateContent } from "./lib/content-validation";
 
 async function main(): Promise<void> {
-  console.log("[validate-content] PLACEHOLDER - full schema validation arrives in Prompt 2.");
-  let contentDirStat;
-  try {
-    contentDirStat = await stat(CONTENT_DIR);
-  } catch {
-    console.error(`[validate-content] content directory not found: ${CONTENT_DIR}`);
+  const contentDir = path.resolve(process.cwd(), "content");
+  console.log(
+    `[validate-content] validating templates in ${path.relative(process.cwd(), contentDir)}`,
+  );
+  const { templates, issues, templateFileCount } = await validateContent(contentDir);
+
+  if (issues.length > 0) {
+    console.error(`[validate-content] FAILED: ${issues.length} issue(s) found:`);
+    for (const issue of issues) {
+      console.error(`  ${formatIssue(issue)}`);
+    }
     process.exit(1);
   }
-  if (!contentDirStat.isDirectory()) {
-    console.error(`[validate-content] not a directory: ${CONTENT_DIR}`);
-    process.exit(1);
-  }
-  const files = (await collectFiles(CONTENT_DIR)).sort();
-  console.log(`[validate-content] ${files.length} content files present:`);
-  for (const file of files) {
-    console.log(`  ${file}`);
+
+  console.log(
+    `[validate-content] OK: ${templateFileCount} template file(s) valid, ${templates.length} template(s) passed.`,
+  );
+  for (const template of templates) {
+    console.log(`  ${template.id} v${template.version} [${template.reviewStatus}]`);
   }
 }
 
