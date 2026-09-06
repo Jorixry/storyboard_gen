@@ -6,6 +6,7 @@ This list contains unresolved facts, not an invitation for Codex to guess.
 
 - Which 8-12 two-person-dialogue examples does the project initiator approve?
 - The first deterministic vertical slice uses `dialogue_medium_two_shot`, `dialogue_ots_a_to_b` and `dialogue_ots_b_to_a`; which exact versions does the Director approve after Web 3D review?
+- Prompt 3 observation for the Director review: at the current engineering-mapped `dialogue_ots_a_to_b` values (camera `[-1.25, 1.7, 2]`, 50mm, 16:9), the rendered camera view frames character_b centered but character_a's shoulder falls entirely outside the left frame edge (NDC x ≈ −1.45 to −1.80), so the template's "foreground shoulder occupies about 1/4–1/3 of frame" acceptance criterion is not yet met by the default pose. The Web stage renders the canonical numbers faithfully; resolving this (camera x/focal or blocking) is a Director mapping decision, not an engineering fix.
 - What are the computable safe ranges for axis, eyeline and foreground occupancy? Foreground occupancy 1/4-1/3 for OTS and two-shot <=40% are supplied as acceptance values; computable axis and eyeline tolerances remain open.
 - Which reference images are original or appropriately licensed?
 - The paired OTS follow-up image resolves the prior B-to-A reference mismatch; independent rights verification remains outstanding.

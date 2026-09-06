@@ -5,7 +5,10 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./tests/e2e",
-  timeout: 30_000,
+  // Headless WebGL scenes under full parallelism need headroom beyond the
+  // 30s default; the readiness gate waits for the correct active camera.
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
