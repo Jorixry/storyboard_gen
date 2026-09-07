@@ -11,7 +11,6 @@ import tseslint from "typescript-eslint";
 // their current releases declare ESLint peer ranges capped at ^9.
 const eslintConfig = tseslint.config(
   ...tseslint.configs.recommended,
-  next.configs.recommended,
   next.configs["core-web-vitals"],
   reactHooks.configs.flat.recommended,
   {
