@@ -169,3 +169,20 @@ test("matches the committed visual baselines for director and camera views", asy
   await waitForStageView(page, "camera");
   await expect(page).toHaveScreenshot(baselineOptions);
 });
+
+test("director-view frustum wires are protected by a local visual assertion", async ({ page }) => {
+  await page.goto("/director");
+  await waitForStageView(page, "director");
+  // Companion to the 1% whole-page baseline above: a cropped region around
+  // the thin CameraHelper frustum lines. If the frustum disappeared, the
+  // missing wire pixels would exceed this local budget even when they could
+  // hide inside the whole-page 1% allowance. Region: the central stage area
+  // where the shot camera body and its frustum are rendered (viewport is
+  // 1280x720; the stage canvas occupies y=108..692).
+  const frustumRegion = { x: 320, y: 200, width: 640, height: 320 };
+  await expect(page).toHaveScreenshot({
+    animations: "disabled" as const,
+    clip: frustumRegion,
+    maxDiffPixelRatio: 0.01,
+  });
+});

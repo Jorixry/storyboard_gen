@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * Static 3D director stage (Prompt 3 / Phase 1 Day 3).
+ * 3D director stage (Prompt 3 / Phase 1 Day 3; interactive-state support from
+ * Prompt 4 / Phase 1 Day 4).
  *
  * The Three.js scene below is a pure projection of the canonical ShotState
  * (see stage-projection.ts). This component defines no template, camera,
@@ -14,14 +15,20 @@
  * instance (no post-mount swap, so no frame can render through a wrong
  * camera); in director view it is mounted as a scene object with a visible
  * body and an accurate CameraHelper frustum while the fixed inspection camera
- * renders. The stage reports ready only after the active camera matches the
- * view's expectation.
+ * renders. When the canonical ShotState changes (Prompt 4 controls), the same
+ * camera instance is updated in place from the new projection — Three.js
+ * never writes back into canonical state.
+ *
+ * Readiness: the stage reports a fresh snapshot only once the ACTIVE camera
+ * numerically matches the current projection (camera view) or the fixed
+ * inspection camera (director view), so browser tests always wait for the
+ * post-update frame.
  *
  * Determinism rules: fixed viewport layout, fixed colors/geometry/lights,
  * dpr=1, no auto-rotation, no randomness, no time-based animation.
  */
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import type { ShotState } from "@/domain/shot-state";
@@ -33,6 +40,7 @@ import {
   projectShotStateToStage,
   type CharacterPlacement,
   type StageProjection,
+  type ShotCameraDescriptor,
 } from "./stage-projection";
 
 export type DirectorStageView = "director" | "camera";
@@ -56,6 +64,62 @@ export interface StageSnapshot {
 }
 
 const STAGE_BACKGROUND = "#181a1e";
+const MATCH_TOLERANCE = 1e-6;
+/**
+ * The camera aspect follows the ACTUAL canvas pixel size (R3F keeps it in
+ * sync on resize), and a CSS aspect-ratio frame rounds to whole pixels, so
+ * the readiness comparison needs a small tolerance. 0.01 still separates
+ * 16:9 from 9:16 (which differ by ~1.19) by two orders of magnitude.
+ */
+const ASPECT_MATCH_TOLERANCE = 0.01;
+
+const isNear = (actual: number, expected: number): boolean =>
+  Math.abs(actual - expected) < MATCH_TOLERANCE;
+
+/**
+ * True when the given active camera IS the shot camera carrying the current
+ * projection numbers (identity plus pose/fov/aspect within tolerance). This
+ * is the camera-view readiness gate: after a canonical-state edit the old
+ * pose no longer matches, so the stage stays not-ready until the updated
+ * camera has rendered.
+ */
+function isActiveShotCamera(
+  camera: THREE.Camera,
+  descriptor: ShotCameraDescriptor,
+  aspect: number,
+): boolean {
+  if (!(camera instanceof THREE.PerspectiveCamera) || camera.name !== SHOT_CAMERA_NAME) {
+    return false;
+  }
+  const positionMatches =
+    isNear(camera.position.x, descriptor.position[0]) &&
+    isNear(camera.position.y, descriptor.position[1]) &&
+    isNear(camera.position.z, descriptor.position[2]);
+  const opticsMatch =
+    isNear(camera.fov, descriptor.fovDeg) &&
+    Math.abs(camera.aspect - aspect) < ASPECT_MATCH_TOLERANCE;
+  if (!positionMatches || !opticsMatch) {
+    return false;
+  }
+  const directionLength = Math.hypot(
+    descriptor.target[0] - descriptor.position[0],
+    descriptor.target[1] - descriptor.position[1],
+    descriptor.target[2] - descriptor.position[2],
+  );
+  const expectedDirection = new THREE.Vector3(
+    (descriptor.target[0] - descriptor.position[0]) / directionLength,
+    (descriptor.target[1] - descriptor.position[1]) / directionLength,
+    (descriptor.target[2] - descriptor.position[2]) / directionLength,
+  );
+  const actualDirection = new THREE.Vector3();
+  camera.updateMatrixWorld();
+  camera.getWorldDirection(actualDirection);
+  return (
+    isNear(actualDirection.x, expectedDirection.x) &&
+    isNear(actualDirection.y, expectedDirection.y) &&
+    isNear(actualDirection.z, expectedDirection.z)
+  );
+}
 
 function Room({ projection }: { projection: StageProjection }) {
   const room = projection.room;
@@ -130,35 +194,35 @@ function Mannequin({ placement }: { placement: CharacterPlacement }) {
 }
 
 /**
- * Reports the live scene state once, and only once the view's expected camera
- * is the active render camera — the readiness gate for browser tests.
+ * Reports the live scene state whenever it CHANGES and only after the view's
+ * expected camera is numerically active — the readiness gate for browser
+ * tests. Static scenes report exactly once; each canonical-state edit
+ * produces exactly one updated report.
  */
 function StageReporter({
   view,
-  shotCamera,
+  shotCameraDescriptor,
+  aspect,
   onSnapshot,
 }: {
   view: DirectorStageView;
-  shotCamera: THREE.PerspectiveCamera;
+  shotCameraDescriptor: ShotCameraDescriptor;
+  aspect: number;
   onSnapshot: (snapshot: StageSnapshot) => void;
 }) {
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
-  const reported = useRef(false);
+  const lastReported = useRef<string>("");
   useFrame(() => {
-    if (reported.current) {
-      return;
-    }
-    // Camera view must render through the ShotState camera; director view
-    // through the fixed inspection camera. Defer until that is true.
-    if (view === "camera" && camera !== shotCamera) {
+    // Camera view must render through the shot camera carrying the current
+    // projection; director view through the fixed inspection camera.
+    if (view === "camera" && !isActiveShotCamera(camera, shotCameraDescriptor, aspect)) {
       return;
     }
     if (view === "director" && camera.name !== DIRECTOR_INSPECTION_CAMERA.name) {
       return;
     }
-    reported.current = true;
     const direction = new THREE.Vector3();
     camera.updateMatrixWorld();
     camera.getWorldDirection(direction);
@@ -172,7 +236,7 @@ function StageReporter({
         mannequins.push(object.name.replace("mannequin-", ""));
       }
     });
-    onSnapshot({
+    const snapshot: StageSnapshot = {
       view,
       activeCamera: {
         name: camera.name,
@@ -184,9 +248,30 @@ function StageReporter({
       shotCameraInScene: shotCameraObject !== undefined,
       frustumHelperVisible: helper !== undefined && helper.visible,
       drawingBuffer: { width: gl.domElement.width, height: gl.domElement.height },
-    });
+    };
+    const serialized = JSON.stringify(snapshot);
+    if (serialized === lastReported.current) {
+      return;
+    }
+    lastReported.current = serialized;
+    onSnapshot(snapshot);
   });
   return null;
+}
+
+/** Accurate frustum wireframe for the shot camera; refreshed every frame. */
+function FrustumHelper({ shotCamera }: { shotCamera: THREE.PerspectiveCamera }) {
+  const [helper] = useState(() => {
+    const helper = new THREE.CameraHelper(shotCamera);
+    helper.name = SHOT_CAMERA_HELPER_NAME;
+    helper.update();
+    return helper;
+  });
+  useEffect(() => () => helper.dispose(), [helper]);
+  useFrame(() => {
+    helper.update();
+  });
+  return <primitive object={helper} />;
 }
 
 function StageContent({
@@ -200,16 +285,7 @@ function StageContent({
   shotCamera: THREE.PerspectiveCamera;
   onSnapshot: (snapshot: StageSnapshot) => void;
 }) {
-  const helper = useMemo(() => {
-    if (view !== "director") {
-      return null;
-    }
-    const helper = new THREE.CameraHelper(shotCamera);
-    helper.name = SHOT_CAMERA_HELPER_NAME;
-    helper.update();
-    return helper;
-  }, [view, shotCamera]);
-
+  const aspect = aspectRatioToNumber(projection.aspectRatio);
   return (
     <>
       <color attach="background" args={[STAGE_BACKGROUND]} />
@@ -231,10 +307,15 @@ function StageContent({
               <meshStandardMaterial color="#1c1c20" />
             </mesh>
           </primitive>
-          {helper !== null && <primitive object={helper} />}
+          <FrustumHelper shotCamera={shotCamera} />
         </>
       )}
-      <StageReporter view={view} shotCamera={shotCamera} onSnapshot={onSnapshot} />
+      <StageReporter
+        view={view}
+        shotCameraDescriptor={projection.shotCamera}
+        aspect={aspect}
+        onSnapshot={onSnapshot}
+      />
     </>
   );
 }
@@ -247,17 +328,19 @@ export function DirectorStage({
   view: DirectorStageView;
 }) {
   const projection = useMemo(() => projectShotStateToStage(shotState), [shotState]);
+  const aspect = aspectRatioToNumber(projection.aspectRatio);
   // The single ShotState-derived camera for this stage, shared by both views.
-  const shotCamera = useMemo(() => {
+  // The instance is stable for the stage's lifetime; canonical-state edits are
+  // applied in place by the effect below (Three.js never becomes state truth).
+  const [shotCamera] = useState(() => {
     const camera = new THREE.PerspectiveCamera();
     camera.name = SHOT_CAMERA_NAME;
-    applyShotCameraToPerspectiveCamera(
-      camera,
-      projection.shotCamera,
-      aspectRatioToNumber(projection.aspectRatio),
-    );
     return camera;
-  }, [projection]);
+  });
+  useEffect(() => {
+    applyShotCameraToPerspectiveCamera(shotCamera, projection.shotCamera, aspect);
+    shotCamera.updateMatrixWorld(true);
+  }, [shotCamera, projection, aspect]);
   const [snapshot, setSnapshot] = useState<StageSnapshot | null>(null);
   const frameStyle =
     view === "camera" ? { aspectRatio: projection.aspectRatio.replace(":", " / ") } : undefined;
