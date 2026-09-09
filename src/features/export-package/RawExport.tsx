@@ -25,14 +25,10 @@ import { useStore } from "zustand/react";
 import { exportImageDimensions } from "@/domain/artifacts";
 import type { CameraPose } from "@/domain/schemas";
 import { shotStateSchema, type ShotState } from "@/domain/shot-state";
-import { verticalFovDeg } from "@/domain/camera-math";
-import {
-  DirectorStage,
-  SHOT_CAMERA_NAME,
-  type StageSnapshot,
-} from "@/features/rendering/DirectorStage";
+import { DirectorStage, type StageSnapshot } from "@/features/rendering/DirectorStage";
 import { appShotStore } from "@/state/app-shot-store";
 
+import { poseMatchesSnapshot } from "./capture-readiness";
 import { buildRawExportPackage, type RawExportImages } from "./raw-export-package";
 
 const CAPTURE_TIMEOUT_MS = 30_000;
@@ -49,23 +45,13 @@ const PHASE_COPY: Record<ExportPhase, string> = {
   error: "",
 };
 
-function matchesPose(snapshot: StageSnapshot, pose: CameraPose, expectedFovDeg: number): boolean {
-  if (snapshot.activeCamera.name !== SHOT_CAMERA_NAME) {
-    return false;
-  }
-  const [x, y, z] = snapshot.activeCamera.position;
-  return (
-    Math.abs(x - pose.position[0]) < 1e-6 &&
-    Math.abs(y - pose.position[1]) < 1e-6 &&
-    Math.abs(z - pose.position[2]) < 1e-6 &&
-    Math.abs(snapshot.activeCamera.fovDeg - expectedFovDeg) < 1e-6
-  );
-}
-
 /**
  * Hidden capture stage: renders one pose at a time in camera view and PNG-
  * encodes each frame only after the readiness snapshot numerically matches
- * that pose. Rendered off-screen at the exact export resolution.
+ * that pose (see capture-readiness.ts: position AND orientation AND FOV AND
+ * the exact export raster — a stale snapshot of a differently-aimed camera
+ * can never authorize a capture). Rendered off-screen at the exact export
+ * resolution.
  */
 function ExportCaptureStage({
   frozen,
@@ -87,7 +73,6 @@ function ExportCaptureStage({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dimensions = exportImageDimensions(frozen.aspectRatio);
   const pose = poses[poseIndex];
-  const expectedFovDeg = verticalFovDeg(pose.focalLengthMm, frozen.aspectRatio);
 
   // Watchdog: a lost WebGL context must surface as an error, not a hang.
   useEffect(() => {
@@ -98,7 +83,7 @@ function ExportCaptureStage({
   }, [poseIndex, onError]);
 
   useEffect(() => {
-    if (snapshot === null || !matchesPose(snapshot, pose, expectedFovDeg)) {
+    if (snapshot === null || !poseMatchesSnapshot(pose, frozen.aspectRatio, dimensions, snapshot)) {
       return;
     }
     if (capturedIndexes.current.has(poseIndex)) {
@@ -132,7 +117,7 @@ function ExportCaptureStage({
         }
       });
     }, "image/png");
-  }, [snapshot, pose, poseIndex, poses.length, expectedFovDeg, onComplete, onError]);
+  }, [snapshot, pose, poseIndex, poses.length, frozen, dimensions, onComplete, onError]);
 
   return (
     <div

@@ -45,7 +45,10 @@ export function rawExportFileName(shotStateId: string): string {
 
 /**
  * Validates the snapshot one final time (the canonical Zod schema is the only
- * gate) and assembles the five-file raw package.
+ * gate) and assembles the five-file raw package. Before wrapping, the
+ * manifest must pass its own executable schema AND its byte counts must equal
+ * the artifact byte lengths it will ship beside (schema cannot express that
+ * cross-reference by itself).
  */
 export async function buildRawExportPackage(
   shotState: ShotState,
@@ -64,6 +67,14 @@ export async function buildRawExportPackage(
     artifacts,
     generatedAt.toISOString(),
   );
+  for (const file of manifest.files) {
+    if (file.bytes !== artifacts[file.name].byteLength) {
+      throw new Error(
+        `manifest byte count for ${file.name} (${file.bytes}) does not match the artifact ` +
+          `(${artifacts[file.name].byteLength}); the package was refused`,
+      );
+    }
+  }
   const zip = buildStoreZip(
     [
       { name: RAW_EXPORT_FILENAMES.shotState, data: artifacts[RAW_EXPORT_FILENAMES.shotState] },

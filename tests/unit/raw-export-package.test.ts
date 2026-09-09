@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
-import { RAW_EXPORT_FILENAMES } from "../../src/domain/artifacts";
+import { RAW_EXPORT_FILENAMES, rawExportManifestSchema } from "../../src/domain/artifacts";
 import {
   SHOT_STATE_SCHEMA_VERSION,
   shotStateSchema,
@@ -116,6 +116,25 @@ describe("buildRawExportPackage", () => {
       expect(createHash("sha256").update(archived).digest("hex")).toBe(file.sha256);
       expect(archived.byteLength).toBe(file.bytes);
     }
+  });
+
+  it("ships a manifest that passes the executable schema (validated before wrapping)", async () => {
+    const state = buildState();
+    const pkg = await buildRawExportPackage(state, images(), GENERATED_AT);
+    // The in-memory manifest validates...
+    expect(rawExportManifestSchema.safeParse(pkg.manifest).success).toBe(true);
+    // ...and so does the manifest actually stored inside the archive bytes.
+    const entries = readStoreZip(Buffer.from(pkg.zip));
+    const stored = JSON.parse(
+      entries.find((entry) => entry.name === RAW_EXPORT_FILENAMES.manifest)!.data.toString("utf8"),
+    );
+    const parsed = rawExportManifestSchema.safeParse(stored);
+    expect(parsed.success).toBe(true);
+    // Cross-file consistency beyond the schema: same state identity.
+    expect(parsed.success && parsed.data.shotState.id).toBe(state.id);
+    expect(parsed.success && parsed.data.shotState.template).toEqual(state.template);
+    expect(parsed.success && parsed.data.shotState.aspectRatio).toBe(state.aspectRatio);
+    expect(parsed.success && parsed.data.movement.type).toBe(state.movement.type);
   });
 
   it("names the archive deterministically from the snapshot ID", async () => {

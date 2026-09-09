@@ -451,6 +451,30 @@ h1 {
   row-gap: 2px;
 }
 
+/*
+ * The session-ID chip gets a FIXED 400px slot (the width of the committed
+ * visual-baseline run). The studio footer is NOT a flex container — it is a
+ * block whose spans flow as inline text — so session UUIDs (36 random hex
+ * characters in a proportional font) wrapped at run-dependent points and,
+ * whenever their natural width crossed a line-break threshold, every footer
+ * line below rearranged and broke the visual gate. The chip is an
+ * inline-block with a fixed width; its height is pinned to 1em because an
+ * overflow:hidden inline-block puts its BASELINE on the bottom edge — at its
+ * natural 20px box height that lifted the first line box by 4px (ascent 1em
+ * + descent .25em vs text ascent 1em). At 1em tall the chip contributes
+ * exactly the text ascent and the line box keeps its 1.25em height; hex ids
+ * have no descenders, so the id stays fully legible inside the box.
+ */
+.studio-stage-footer [data-testid="footer-shot-state"] {
+  display: inline-block;
+  width: 400px;
+  min-width: 0;
+  height: 1em;
+  line-height: 1em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
 .studio-controls-pane {
   width: 360px;
   flex: 0 0 360px;

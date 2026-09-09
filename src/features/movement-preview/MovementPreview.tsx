@@ -22,6 +22,8 @@ import { useEffect, useRef, useState } from "react";
 import { interpolateCameraPose } from "@/domain/movement";
 import type { ShotState } from "@/domain/shot-state";
 
+import { advancePlayhead, resolvePlayStart } from "./playhead";
+
 export interface MovementPreviewUiState {
   enabled: boolean;
   progress: number;
@@ -49,26 +51,20 @@ export function MovementPreview({
     progressRef.current = preview.progress;
   }, [preview.progress]);
 
-  // Play = requestAnimationFrame scrub from the current progress to t=1 over
-  // the movement's duration. Purely ephemeral: each frame updates the page's
-  // preview state, nothing else.
+  // Play = requestAnimationFrame scrub to t=1 at FULL-TIMELINE speed (see
+  // playhead.ts): a 4 s movement resumed from t=0.5 finishes in ~2 s, not 4 s.
+  // Purely ephemeral: each frame updates the page's preview state, nothing
+  // else; duration and easing are never modified.
   useEffect(() => {
     if (!playing) {
       return;
     }
-    const startProgress = progressRef.current >= 1 ? 0 : progressRef.current;
-    const span = 1 - startProgress;
-    if (span <= 0) {
-      onPreviewChange({ enabled: true, progress: 1 });
-      setPlaying(false);
-      return;
-    }
+    const startProgress = resolvePlayStart(progressRef.current);
     const durationMs = movement.durationSeconds * 1000;
     const startedAt = performance.now();
     let frame = 0;
     const tick = () => {
-      const elapsed = (performance.now() - startedAt) / durationMs;
-      const next = Math.min(startProgress + span * elapsed, 1);
+      const next = advancePlayhead(startProgress, performance.now() - startedAt, durationMs);
       onPreviewChange({ enabled: true, progress: next });
       if (next >= 1) {
         setPlaying(false);

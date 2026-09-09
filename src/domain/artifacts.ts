@@ -1,5 +1,6 @@
 /**
- * Raw-export artifact contract (Prompt 5 / Phase 1 Day 5).
+ * Raw-export artifact contract (Prompt 5 / Phase 1 Day 5; strict executable
+ * manifest schema added in the Prompt 5 fix round).
  *
  * The raw export package is exactly five files (docs/PRODUCT_SPEC.md minus
  * the Phase 2 prompt/enhanced-frame artifacts):
@@ -7,19 +8,28 @@
  *   shot-state.json  composition-raw.png  movement-start.png
  *   movement-end.png  manifest.json
  *
- * The manifest is explicitly versioned and records the template/schema
- * versions plus a SHA-256 for every non-manifest file, so a reviewer can
- * verify that all artifacts came from the same frozen ShotState snapshot.
- * Hashes use the WebCrypto SubtleCrypto digest (available in latest Chrome
- * and in Node >= 18) — no dependency, no network.
+ * The manifest is versioned and records the template/schema versions plus a
+ * SHA-256 for every non-manifest file, so a reviewer can verify that all
+ * artifacts came from the same frozen ShotState snapshot. Beyond the
+ * TypeScript type, `rawExportManifestSchema` is the EXECUTABLE truth: the
+ * type is derived from it (z.infer — one structural truth, not two), the
+ * package builder validates the manifest against it before wrapping the
+ * archive, and the browser test re-validates the manifest extracted from the
+ * actually downloaded ZIP.
  *
- * The ShotState itself is serialized here (never in the store or the
- * renderer), and the caller injects `generatedAt`, keeping the whole package
- * byte-deterministic for one snapshot + one timestamp.
+ * Hashes use the WebCrypto SubtleCrypto digest (available in latest Chrome
+ * and in Node >= 18) — no dependency, no network. The caller injects
+ * `generatedAt`, keeping the whole package byte-deterministic for one
+ * snapshot + one timestamp.
  *
  * Framework-independent by contract: no React/Next/Three.js/provider imports.
  */
+import { z } from "zod";
+
 import type { ShotState } from "./shot-state";
+import { SHOT_STATE_SCHEMA_VERSION } from "./shot-state";
+import { aspectRatioSchema, easingSchema, movementTypeSchema } from "./schemas";
+import { reviewStatusSchema, templateIdSchema } from "./shot-template";
 
 export const RAW_EXPORT_MANIFEST_VERSION = 1;
 
@@ -47,28 +57,78 @@ const ARTIFACT_ROLES: readonly RawExportArtifactRole[] = [
   RAW_EXPORT_FILENAMES.movementEnd,
 ];
 
-export interface RawExportManifest {
-  kind: "storyboard-director-raw-export";
-  manifestVersion: typeof RAW_EXPORT_MANIFEST_VERSION;
+/** ISO 8601 UTC timestamp with mandatory Z suffix (what Date.toISOString emits). */
+const ISO_8601_UTC_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+/** Lowercase 64-hex-digit SHA-256 digest. */
+const SHA256_HEX_REGEX = /^[0-9a-f]{64}$/;
+
+const manifestArtifactSchema = z.strictObject({
+  name: z.enum(ARTIFACT_ROLES),
+  sha256: z.string().regex(SHA256_HEX_REGEX, {
+    message: "sha256 must be a lowercase 64-hex-digit digest",
+  }),
+  bytes: z.number().int().nonnegative(),
+});
+
+const manifestFilesSchema = z.array(manifestArtifactSchema).superRefine((files, ctx) => {
+  const expected = [...ARTIFACT_ROLES].sort();
+  const actual = files.map((file) => file.name).sort();
+  const duplicates = actual.filter((name, index) => actual.indexOf(name) !== index);
+  if (duplicates.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: [],
+      message: `manifest files must not repeat entries; duplicated: ${[...new Set(duplicates)].join(", ")}`,
+    });
+    return;
+  }
+  const missing = expected.filter((name) => !actual.includes(name));
+  const extra = actual.filter((name) => !expected.includes(name));
+  if (missing.length > 0 || extra.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: [],
+      message:
+        `manifest files must cover exactly the four raw-export artifacts; ` +
+        `missing: ${missing.length > 0 ? missing.join(", ") : "none"}; ` +
+        `unexpected: ${extra.length > 0 ? extra.join(", ") : "none"}`,
+    });
+  }
+});
+
+/**
+ * Executable, versioned, strict manifest schema: rejects unknown fields,
+ * wrong kinds/versions, malformed timestamps, invalid digests, non-integer
+ * byte counts and any files-list that is not exactly the four hashed
+ * artifacts (each once).
+ */
+export const rawExportManifestSchema = z.strictObject({
+  kind: z.literal("storyboard-director-raw-export"),
+  manifestVersion: z.literal(RAW_EXPORT_MANIFEST_VERSION),
   /** ISO 8601 UTC timestamp injected by the caller. */
-  generatedAt: string;
-  shotState: {
-    id: string;
-    schemaVersion: ShotState["schemaVersion"];
-    template: ShotState["template"];
-    aspectRatio: ShotState["aspectRatio"];
-  };
-  movement: {
-    type: ShotState["movement"]["type"];
-    durationSeconds: number;
-    easing: ShotState["movement"]["easing"];
-  };
-  files: Array<{
-    name: RawExportArtifactRole;
-    sha256: string;
-    bytes: number;
-  }>;
-}
+  generatedAt: z.string().regex(ISO_8601_UTC_REGEX, {
+    message: "generatedAt must be an ISO 8601 UTC timestamp ending in Z",
+  }),
+  shotState: z.strictObject({
+    id: z.string().min(1),
+    schemaVersion: z.literal(SHOT_STATE_SCHEMA_VERSION),
+    template: z.strictObject({
+      id: templateIdSchema,
+      version: z.number().int().min(1),
+      reviewStatus: reviewStatusSchema,
+    }),
+    aspectRatio: aspectRatioSchema,
+  }),
+  movement: z.strictObject({
+    type: movementTypeSchema,
+    durationSeconds: z.number().finite().min(0.5).max(20),
+    easing: easingSchema,
+  }),
+  files: manifestFilesSchema,
+});
+
+export type RawExportManifest = z.infer<typeof rawExportManifestSchema>;
 
 /** Deterministic export raster: long edge 1280 px, dpr 1, aspect-exact. */
 export const EXPORT_IMAGE_LONG_EDGE_PX = 1280;
@@ -78,7 +138,10 @@ export function exportImageDimensions(aspectRatio: ShotState["aspectRatio"]): {
   height: number;
 } {
   return aspectRatio === "16:9"
-    ? { width: EXPORT_IMAGE_LONG_EDGE_PX, height: Math.round((EXPORT_IMAGE_LONG_EDGE_PX * 9) / 16) }
+    ? {
+        width: EXPORT_IMAGE_LONG_EDGE_PX,
+        height: Math.round((EXPORT_IMAGE_LONG_EDGE_PX * 9) / 16),
+      }
     : {
         width: Math.round((EXPORT_IMAGE_LONG_EDGE_PX * 9) / 16),
         height: EXPORT_IMAGE_LONG_EDGE_PX,
@@ -110,7 +173,16 @@ export async function buildRawExportManifest(
   artifacts: Readonly<Record<RawExportArtifactRole, Uint8Array>>,
   generatedAt: string,
 ): Promise<{ manifest: RawExportManifest; bytes: Uint8Array }> {
-  const manifest: RawExportManifest = {
+  const files: z.infer<typeof manifestArtifactSchema>[] = [];
+  for (const name of ARTIFACT_ROLES) {
+    const bytes = artifacts[name];
+    files.push({
+      name,
+      sha256: await sha256Hex(bytes),
+      bytes: bytes.byteLength,
+    });
+  }
+  const candidate: RawExportManifest = {
     kind: "storyboard-director-raw-export",
     manifestVersion: RAW_EXPORT_MANIFEST_VERSION,
     generatedAt,
@@ -125,16 +197,11 @@ export async function buildRawExportManifest(
       durationSeconds: shotState.movement.durationSeconds,
       easing: shotState.movement.easing,
     },
-    files: [],
+    files,
   };
-  for (const name of ARTIFACT_ROLES) {
-    const bytes = artifacts[name];
-    manifest.files.push({
-      name,
-      sha256: await sha256Hex(bytes),
-      bytes: bytes.byteLength,
-    });
-  }
+  // The builder itself runs the executable schema: a manifest that would not
+  // validate can never leave the domain layer.
+  const manifest = rawExportManifestSchema.parse(candidate);
   return { manifest, bytes: encodeJson(manifest) };
 }
 
