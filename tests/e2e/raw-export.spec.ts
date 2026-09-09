@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Download, type Page } from "@playwright/test";
 
 import { RAW_EXPORT_FILENAMES, rawExportManifestSchema } from "../../src/domain/artifacts";
+import { shotStateSchema } from "../../src/domain/shot-state";
 import {
   centerRegionStats,
   changedPixelRatio,
@@ -161,15 +162,26 @@ interface ExportResult {
   manifest: Record<string, unknown>;
 }
 
-/** Clicks export, waits for the real browser download, saves evidence, verifies the archive skeleton. */
-async function exportAndRead(page: Page, evidenceFile: string): Promise<ExportResult> {
+/**
+ * Attaches the download listener FIRST and clicks export exactly once, so the
+ * awaited download is unambiguously the one this export produced. Returns the
+ * pending download promise for `readExportDownload`.
+ */
+async function beginExportDownload(page: Page): Promise<Download> {
+  const download = page.waitForEvent("download");
+  await page.getByTestId("export-raw-zip").click();
+  return download;
+}
+
+/** Saves and fully parses one already-awaited (or still-pending) download. */
+async function readExportDownload(
+  download: Promise<Download> | Download,
+  evidenceFile: string,
+): Promise<ExportResult> {
   await mkdir(EVIDENCE_DIR, { recursive: true });
-  const [download] = await Promise.all([
-    page.waitForEvent("download"),
-    page.getByTestId("export-raw-zip").click(),
-  ]);
-  await download.saveAs(path.join(EVIDENCE_DIR, evidenceFile));
-  const downloadPath = await download.path();
+  const resolved = await download;
+  await resolved.saveAs(path.join(EVIDENCE_DIR, evidenceFile));
+  const downloadPath = await resolved.path();
   expect(downloadPath).toBeDefined();
   const zipBytes = Buffer.from(await readFile(downloadPath!));
   const entries = readStoreZip(zipBytes); // independent reader; verifies every CRC
@@ -182,6 +194,12 @@ async function exportAndRead(page: Page, evidenceFile: string): Promise<ExportRe
     entryBytes.get(RAW_EXPORT_FILENAMES.manifest)!.toString("utf8"),
   ) as Record<string, unknown>;
   return { zipBytes, entryBytes, state, manifest };
+}
+
+/** Convenience wrapper for tests that read the download immediately. */
+async function exportAndRead(page: Page, evidenceFile: string): Promise<ExportResult> {
+  const download = await beginExportDownload(page);
+  return readExportDownload(download, evidenceFile);
 }
 
 /** Schema-validates the DOWNLOADED manifest and independently recomputes every hash and byte count. */
@@ -543,29 +561,106 @@ test("a preview parked mid-timeline never leaks into the exported package", asyn
 
 test("edits made during capture cannot pollute the frozen snapshot", async ({ page }) => {
   test.setTimeout(120_000);
+  // Test-side capture sync point (installed before any page script runs): while
+  // the hold flag is set, every HTMLCanvasElement.toBlob invocation is queued
+  // instead of executed. This makes "the edit happened while the FIRST capture
+  // was in flight" a deterministic fact (a held PNG callback PROVES capture
+  // had started and not finished), not a race. Production code is untouched.
+  await page.addInitScript(() => {
+    const nativeToBlob = HTMLCanvasElement.prototype.toBlob;
+    const queue: Array<{
+      canvas: HTMLCanvasElement;
+      callback: BlobCallback;
+      type?: string;
+    }> = [];
+    const scope = window as unknown as Record<string, unknown>;
+    scope.__pngHold = false;
+    scope.__pngHeldCount = 0;
+    HTMLCanvasElement.prototype.toBlob = function (
+      this: HTMLCanvasElement,
+      callback: BlobCallback,
+      type?: string,
+    ) {
+      if (scope.__pngHold === true) {
+        scope.__pngHeldCount = (scope.__pngHeldCount as number) + 1;
+        queue.push({ canvas: this, callback, type });
+        return;
+      }
+      return nativeToBlob.call(this, callback, type);
+    };
+    scope.__releasePngHold = () => {
+      scope.__pngHold = false;
+      const pending = queue.splice(0);
+      for (const held of pending) {
+        nativeToBlob.call(held.canvas, held.callback, held.type);
+      }
+    };
+  });
   await page.goto("/");
   await page.getByTestId("select-template-dialogue_ots_a_to_b").click();
 
-  // Export, then race a focal edit into the page WHILE the capture stage is
-  // running. The package must still carry the state frozen at click time.
-  await Promise.all([
-    page.getByTestId("export-raw-zip").click(),
-    page
-      .waitForFunction(() =>
-        (document.querySelector('[data-testid="export-status"]')?.textContent ?? "").includes(
-          "渲染",
-        ),
-      )
-      .then(() => page.getByTestId("control-focal-compressed").click()),
-  ]);
-  // The edit DID land in the live canonical state (footer shows 85mm)...
+  // Hold PNG capture, then start exactly ONE export with the download listener
+  // already attached.
+  await page.evaluate(() => {
+    (window as unknown as Record<string, unknown>).__pngHold = true;
+  });
+  const downloadPromise = beginExportDownload(page);
+
+  // Deterministic in-flight proof: at least one capture PNG callback has been
+  // called and is being held — the export is mid-capture and cannot progress.
+  await page.waitForFunction(
+    () => (window as unknown as Record<string, number>).__pngHeldCount >= 1,
+  );
+
+  // Edit the live canonical state while the capture is held.
+  await page.getByTestId("control-focal-compressed").click();
+  // The edit DID land (footer shows 85mm) while the frozen capture is paused.
   await expect(page.getByTestId("footer-camera")).toContainText("85mm");
 
-  const result = await exportAndRead(page, "mid-capture-edit.zip");
-  // ...but the exported snapshot still carries the frozen 50mm template focal.
-  expect(result.state.camera.focalLengthMm).toBe(50);
-  expectVecCloseTo(result.state.camera.position, OTS_A_TO_B.camera.position);
-  verifyDownloadedManifest(result);
+  // Release the held capture; the export finishes from the FROZEN snapshot.
+  await page.evaluate(() => {
+    (window as unknown as Record<string, () => void>).__releasePngHold();
+  });
+  const result = await readExportDownload(downloadPromise, "mid-capture-edit.zip");
+
+  // --- shot-state.json: canonical schema + frozen-at-click values. ---
+  const stateParsed = shotStateSchema.safeParse(result.state);
+  if (!stateParsed.success) {
+    throw new Error(
+      `downloaded shot-state.json fails the canonical schema: ${stateParsed.error.message}`,
+    );
+  }
+  // The live state is 85mm now, but the package froze the 50mm template focal.
+  expect(stateParsed.data.camera.focalLengthMm).toBe(50);
+  expectVecCloseTo(stateParsed.data.camera.position, OTS_A_TO_B.camera.position);
+  expectVecCloseTo(stateParsed.data.camera.target, OTS_A_TO_B.camera.target);
+
+  // --- manifest.json: executable schema, cross-file metadata, hashes. ---
+  const manifestParsed = rawExportManifestSchema.safeParse(result.manifest);
+  if (!manifestParsed.success) {
+    throw new Error(
+      `downloaded manifest fails its executable schema: ${manifestParsed.error.message}`,
+    );
+  }
+  expect(manifestParsed.data.shotState.id).toBe(stateParsed.data.id);
+  expect(manifestParsed.data.shotState.template).toEqual(stateParsed.data.template);
+  expect(manifestParsed.data.shotState.aspectRatio).toBe(stateParsed.data.aspectRatio);
+  expect(manifestParsed.data.movement.type).toBe(stateParsed.data.movement.type);
+  expect(manifestParsed.data.movement.durationSeconds).toBe(
+    stateParsed.data.movement.durationSeconds,
+  );
+  expect(manifestParsed.data.movement.easing).toBe(stateParsed.data.movement.easing);
+  // Independent hash + byteLength recomputation for every hashed artifact.
+  for (const file of manifestParsed.data.files) {
+    const archived = result.entryBytes.get(file.name)!;
+    expect(createHash("sha256").update(archived).digest("hex")).toBe(file.sha256);
+    expect(archived.byteLength).toBe(file.bytes);
+  }
+
+  // --- Frozen images: the three rasters still decode as valid renders. ---
+  decodeArchivedPng(result, "composition-raw.png", LANDSCAPE);
+  decodeArchivedPng(result, "movement-start.png", LANDSCAPE);
+  decodeArchivedPng(result, "movement-end.png", LANDSCAPE);
 });
 
 test("repeat exports from one session are stable except the generation timestamp", async ({

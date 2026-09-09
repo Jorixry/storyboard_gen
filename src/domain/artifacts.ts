@@ -57,8 +57,17 @@ const ARTIFACT_ROLES: readonly RawExportArtifactRole[] = [
   RAW_EXPORT_FILENAMES.movementEnd,
 ];
 
-/** ISO 8601 UTC timestamp with mandatory Z suffix (what Date.toISOString emits). */
-const ISO_8601_UTC_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+/**
+ * ISO 8601 UTC timestamp with a mandatory Z suffix — exactly what
+ * `Date.toISOString()` emits. Zod's strict ISO datetime validator enforces
+ * real calendar semantics (month 01-12, valid day-of-month including
+ * leap-year February, hour <= 23, minute/second <= 59), which a plain
+ * `\d{2}` regex cannot: it previously accepted 2026-99-99T99:99:99Z and
+ * 2026-02-30T12:00:00Z. No offsets are permitted (UTC only).
+ */
+const iso8601UtcSchema = z.iso.datetime({
+  message: "generatedAt must be an ISO 8601 UTC timestamp ending in Z",
+});
 
 /** Lowercase 64-hex-digit SHA-256 digest. */
 const SHA256_HEX_REGEX = /^[0-9a-f]{64}$/;
@@ -106,10 +115,8 @@ const manifestFilesSchema = z.array(manifestArtifactSchema).superRefine((files, 
 export const rawExportManifestSchema = z.strictObject({
   kind: z.literal("storyboard-director-raw-export"),
   manifestVersion: z.literal(RAW_EXPORT_MANIFEST_VERSION),
-  /** ISO 8601 UTC timestamp injected by the caller. */
-  generatedAt: z.string().regex(ISO_8601_UTC_REGEX, {
-    message: "generatedAt must be an ISO 8601 UTC timestamp ending in Z",
-  }),
+  /** ISO 8601 UTC timestamp injected by the caller (strict calendar-valid). */
+  generatedAt: iso8601UtcSchema,
   shotState: z.strictObject({
     id: z.string().min(1),
     schemaVersion: z.literal(SHOT_STATE_SCHEMA_VERSION),

@@ -196,6 +196,45 @@ describe("rawExportManifestSchema (executable manifest contract, fix P1-2)", () 
     await rejects((manifest) => {
       manifest.generatedAt = "not a timestamp";
     });
+    await rejects((manifest) => {
+      manifest.generatedAt = "2026-09-09T12:00:00"; // missing UTC Z suffix
+    });
+  });
+
+  it("rejects calendar-invalid generatedAt values a plain regex accepted (fix P2-1)", async () => {
+    await rejects((manifest) => {
+      manifest.generatedAt = "2026-99-99T99:99:99Z"; // out-of-range month/day/time
+    });
+    await rejects((manifest) => {
+      manifest.generatedAt = "2026-13-01T12:00:00Z"; // month 13
+    });
+    await rejects((manifest) => {
+      manifest.generatedAt = "2026-02-30T12:00:00Z"; // February 30th
+    });
+    await rejects((manifest) => {
+      manifest.generatedAt = "2026-02-29T12:00:00Z"; // Feb 29 in a NON-leap year
+    });
+    await rejects((manifest) => {
+      manifest.generatedAt = "2026-04-31T12:00:00Z"; // April 31st
+    });
+    await rejects((manifest) => {
+      manifest.generatedAt = "2026-09-09T24:00:00Z"; // hour 24
+    });
+    await rejects((manifest) => {
+      manifest.generatedAt = "2026-09-09T23:59:60Z"; // second 60
+    });
+  });
+
+  it("accepts calendar-valid generatedAt values including leap days and toISOString output", async () => {
+    const accepts = async (value: string): Promise<void> => {
+      const manifest = await validManifest();
+      manifest.generatedAt = value;
+      expect(rawExportManifestSchema.safeParse(manifest).success).toBe(true);
+    };
+    await accepts(new Date("2026-09-09T12:00:00.000Z").toISOString());
+    await accepts("2026-09-09T12:00:00Z"); // whole seconds
+    await accepts("2024-02-29T00:00:00Z"); // real leap day (2024 is a leap year)
+    await accepts("2000-02-29T23:59:59Z"); // 400-year leap rule
   });
 
   it("rejects invalid ShotState metadata (schemaVersion, template, aspectRatio)", async () => {
