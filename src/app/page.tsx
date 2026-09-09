@@ -1,11 +1,14 @@
 "use client";
 
 /**
- * Director studio home (Prompt 4 / Phase 1 Day 4).
+ * Director studio home (Prompt 4 / Phase 1 Day 4; movement preview and raw
+ * export from Prompt 5 / Phase 1 Day 5).
  *
  * Template gallery -> canonical ShotState -> simple semantic controls +
  * optional constrained 3D refinement -> live director/camera preview, with
- * browser-local session persistence.
+ * browser-local session persistence. The movement preview feeds an ephemeral
+ * interpolated camera pose into the stage (temporary UI state only), and the
+ * raw export freezes one validated ShotState snapshot into a five-file ZIP.
  *
  * Development boundary: the gallery lists ONLY templates loaded through the
  * explicit development opt-in (engineering_ready). The production loader
@@ -18,8 +21,14 @@ import { useStore } from "zustand/react";
 import { loadDevelopmentTemplates, loadProductionTemplates } from "@/content/loader";
 import { COMPILED_SHOT_TEMPLATES } from "@/content/compiled-content";
 import { verticalFovDeg } from "@/domain/camera-math";
+import { interpolateCameraPose } from "@/domain/movement";
 import { TransformRefinement } from "@/features/director-stage/TransformRefinement";
+import { RawExport } from "@/features/export-package/RawExport";
 import { DirectorStage, type DirectorStageView } from "@/features/rendering/DirectorStage";
+import {
+  MovementPreview,
+  type MovementPreviewUiState,
+} from "@/features/movement-preview/MovementPreview";
 import { SimpleControls } from "@/features/simple-controls/SimpleControls";
 import { TemplateGallery } from "@/features/shot-library/TemplateGallery";
 import { appShotStore } from "@/state/app-shot-store";
@@ -65,6 +74,20 @@ export default function Home() {
   // UI/infrastructure state only — never camera, character, scene or any
   // ShotState truth, so React local state is the right home for it.
   const [persistenceStatus, setPersistenceStatus] = useState<PersistenceStatus>("pending");
+  // Movement preview progress is equally ephemeral UI state: the interpolated
+  // pose below is derived from ShotState.movement on every render and passed
+  // to the stage as a rendering override — never back into the store.
+  const [movementPreview, setMovementPreview] = useState<MovementPreviewUiState>({
+    enabled: false,
+    progress: 0,
+  });
+  const previewPose = useMemo(
+    () =>
+      shotState !== null && movementPreview.enabled
+        ? interpolateCameraPose(shotState.movement, movementPreview.progress)
+        : undefined,
+    [shotState, movementPreview],
+  );
 
   // Session persistence: hydrate once on mount (never during SSR), then save
   // every new canonical ShotState. `hydrated` still only means "the restore
@@ -148,7 +171,7 @@ export default function Home() {
               </p>
             </div>
             <div className="studio-stage-frame-wrap">
-              <DirectorStage shotState={shotState} view={view} />
+              <DirectorStage shotState={shotState} view={view} cameraPoseOverride={previewPose} />
             </div>
             <footer className="studio-stage-footer">
               {/* Masked in visual baselines: the ShotState ID is unique per load. */}
@@ -175,7 +198,13 @@ export default function Home() {
           </div>
           <aside className="studio-controls-pane">
             <SimpleControls onWarning={setWarning} />
+            <MovementPreview
+              shotState={shotState}
+              preview={movementPreview}
+              onPreviewChange={setMovementPreview}
+            />
             <TransformRefinement onWarning={setWarning} />
+            <RawExport />
             <p className="command-warning" data-testid="command-warning" hidden={warning === ""}>
               {warning}
             </p>

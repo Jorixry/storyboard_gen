@@ -416,6 +416,10 @@ h1 {
 .studio-stage-pane {
   flex: 1 1 auto;
   min-width: 0;
+  /* Keep the stage pane at its natural height (toolbar + fixed 480px frame +
+     footer) even when the controls column grows with new Prompt 5 panels;
+     stretch would silently change the committed visual baselines. */
+  align-self: flex-start;
   display: flex;
   flex-direction: column;
   border: 1px solid #d0d0d0;
@@ -592,4 +596,106 @@ h1 {
 .number-field-range {
   color: #555555;
   white-space: nowrap;
+}
+
+/* --- Movement preview (Prompt 5 / Phase 1 Day 5) ------------------------- */
+.movement-preview {
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.movement-preview h3 {
+  font-size: 0.9rem;
+  margin: 0 0 8px;
+}
+
+.movement-summary {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  color: #444444;
+}
+
+.movement-preview .control-group button {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border: 1px solid #b8b8b8;
+  border-radius: 4px;
+  background: #f0f0f0;
+  cursor: pointer;
+}
+
+.movement-preview .control-group button[aria-pressed="true"] {
+  background: #1f5f8b;
+  border-color: #1f5f8b;
+  color: #ffffff;
+}
+
+.movement-preview .control-group button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.movement-preview-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.movement-preview-slider input[type="range"] {
+  flex: 1 1 auto;
+}
+
+.movement-preview-slider span {
+  font-size: 0.75rem;
+  color: #333333;
+  min-width: 44px;
+  text-align: right;
+}
+
+/* --- Raw export (Prompt 5 / Phase 1 Day 5) ------------------------------- */
+.raw-export {
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.raw-export h3 {
+  font-size: 0.9rem;
+  margin: 0 0 8px;
+}
+
+.raw-export .control-group button {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border: 1px solid #b8b8b8;
+  border-radius: 4px;
+  background: #f0f0f0;
+  cursor: pointer;
+}
+
+.raw-export .control-group button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/*
+ * Hidden export capture stage: rendered off-screen (NOT display:none, so the
+ * WebGL canvas keeps its full drawing buffer) at the exact export resolution.
+ */
+.raw-export-capture-stage {
+  position: fixed;
+  left: -20000px;
+  top: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.raw-export-capture-stage .director-stage {
+  height: 100%;
 }

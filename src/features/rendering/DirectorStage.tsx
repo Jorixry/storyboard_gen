@@ -2,7 +2,7 @@
 
 /**
  * 3D director stage (Prompt 3 / Phase 1 Day 3; interactive-state support from
- * Prompt 4 / Phase 1 Day 4).
+ * Prompt 4 / Phase 1 Day 4; derived-pose override from Prompt 5 / Day 5).
  *
  * The Three.js scene below is a pure projection of the canonical ShotState
  * (see stage-projection.ts). This component defines no template, camera,
@@ -19,6 +19,14 @@
  * camera instance is updated in place from the new projection — Three.js
  * never writes back into canonical state.
  *
+ * `cameraPoseOverride` (Prompt 5) is an EPHEMERAL derived pose: a movement
+ * interpolation for tween preview or an explicit start/end/current pose for
+ * export capture. It replaces the shot camera's numbers for rendering only;
+ * it is never written back to the store and never persisted, and omitting it
+ * renders the canonical current camera. The readiness gate below compares
+ * against the effective (override-or-canonical) descriptor, so consumers can
+ * wait for the override frame deterministically.
+ *
  * Readiness: the stage reports a fresh snapshot only once the ACTIVE camera
  * numerically matches the current projection (camera view) or the fixed
  * inspection camera (director view), so browser tests always wait for the
@@ -26,6 +34,7 @@
  *
  * Determinism rules: fixed viewport layout, fixed colors/geometry/lights,
  * dpr=1, no auto-rotation, no randomness, no time-based animation.
+ * `preserveDrawingBuffer` keeps the last frame readable for PNG capture.
  */
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -38,10 +47,12 @@ import {
   DIRECTOR_INSPECTION_CAMERA,
   MANNEQUIN,
   projectShotStateToStage,
+  shotCameraDescriptor,
   type CharacterPlacement,
   type StageProjection,
   type ShotCameraDescriptor,
 } from "./stage-projection";
+import type { CameraPose } from "@/domain/schemas";
 
 export type DirectorStageView = "director" | "camera";
 
@@ -278,11 +289,13 @@ function StageContent({
   projection,
   view,
   shotCamera,
+  effectiveShotCamera,
   onSnapshot,
 }: {
   projection: StageProjection;
   view: DirectorStageView;
   shotCamera: THREE.PerspectiveCamera;
+  effectiveShotCamera: ShotCameraDescriptor;
   onSnapshot: (snapshot: StageSnapshot) => void;
 }) {
   const aspect = aspectRatioToNumber(projection.aspectRatio);
@@ -312,7 +325,7 @@ function StageContent({
       )}
       <StageReporter
         view={view}
-        shotCameraDescriptor={projection.shotCamera}
+        shotCameraDescriptor={effectiveShotCamera}
         aspect={aspect}
         onSnapshot={onSnapshot}
       />
@@ -323,12 +336,30 @@ function StageContent({
 export function DirectorStage({
   shotState,
   view,
+  cameraPoseOverride,
+  onSnapshot,
 }: {
   shotState: ShotState;
   view: DirectorStageView;
+  /**
+   * Ephemeral derived pose (movement interpolation / export capture). Renders
+   * in place of the canonical current camera; never written back anywhere.
+   */
+  cameraPoseOverride?: CameraPose;
+  /** Optional observer for the same readiness snapshots exposed to tests. */
+  onSnapshot?: (snapshot: StageSnapshot) => void;
 }) {
   const projection = useMemo(() => projectShotStateToStage(shotState), [shotState]);
   const aspect = aspectRatioToNumber(projection.aspectRatio);
+  // The effective shot camera: the override when one is supplied (preview or
+  // export capture), otherwise the canonical current camera projection.
+  const effectiveShotCamera = useMemo(
+    () =>
+      cameraPoseOverride === undefined
+        ? projection.shotCamera
+        : shotCameraDescriptor(cameraPoseOverride, projection.aspectRatio),
+    [cameraPoseOverride, projection],
+  );
   // The single ShotState-derived camera for this stage, shared by both views.
   // The instance is stable for the stage's lifetime; canonical-state edits are
   // applied in place by the effect below (Three.js never becomes state truth).
@@ -338,10 +369,14 @@ export function DirectorStage({
     return camera;
   });
   useEffect(() => {
-    applyShotCameraToPerspectiveCamera(shotCamera, projection.shotCamera, aspect);
+    applyShotCameraToPerspectiveCamera(shotCamera, effectiveShotCamera, aspect);
     shotCamera.updateMatrixWorld(true);
-  }, [shotCamera, projection, aspect]);
+  }, [shotCamera, effectiveShotCamera, aspect]);
   const [snapshot, setSnapshot] = useState<StageSnapshot | null>(null);
+  const reportSnapshot = (next: StageSnapshot) => {
+    setSnapshot(next);
+    onSnapshot?.(next);
+  };
   const frameStyle =
     view === "camera" ? { aspectRatio: projection.aspectRatio.replace(":", " / ") } : undefined;
 
@@ -364,7 +399,7 @@ export function DirectorStage({
           <Canvas
             key={view}
             dpr={1}
-            gl={{ antialias: true }}
+            gl={{ antialias: true, preserveDrawingBuffer: true }}
             camera={
               view === "camera"
                 ? // The shot camera instance is the initial render camera:
@@ -394,7 +429,8 @@ export function DirectorStage({
               projection={projection}
               view={view}
               shotCamera={shotCamera}
-              onSnapshot={setSnapshot}
+              effectiveShotCamera={effectiveShotCamera}
+              onSnapshot={reportSnapshot}
             />
           </Canvas>
         </div>

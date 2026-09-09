@@ -43,7 +43,7 @@ Static director content (YAML)
 | Browser tests | Playwright | Primary latest-Chrome workflow validation |
 | Static content | YAML compiled/validated at build time | Director-friendly diffs and version control |
 | Session persistence | In-memory state plus browser local storage | No accounts or database in MVP |
-| Export packaging | JSZip or server-side equivalent | One coherent downloadable package |
+| Export packaging | In-repo deterministic STORE-only ZIP writer (Prompt 5); JSZip or a server-side equivalent remain acceptable alternatives | One coherent downloadable package with no new dependency |
 
 The dependency versions must be resolved from current official package documentation when scaffolding; do not copy version numbers into this architecture document.
 
@@ -220,6 +220,7 @@ The first implementation should include deterministic mock adapters before any p
 - Use deterministic filenames from the `ShotState` ID.
 - Build a manifest containing template, schema and adapter versions plus hashes where practical.
 - Enhanced first-frame generation is optional; a failed provider call must not block raw export.
+- Prompt 5 (Day 5) raw export contract: a five-file STORE-only ZIP (`shot-state.json`, `composition-raw.png`, `movement-start.png`, `movement-end.png`, `manifest.json`) built from one validated `ShotState` snapshot; PNG rasters use a 1280 px long edge at the selected aspect ratio (dpr 1); the manifest is versioned (`manifestVersion`), SHA-256-covers the other four files, and the archive is byte-deterministic for one snapshot plus one generation timestamp. Implemented with a small in-repo ZIP writer instead of JSZip to keep the dependency tree unchanged; the unit suite cross-checks CRC-32 against `node:zlib.crc32`.
 
 ## Security and cost controls
 
