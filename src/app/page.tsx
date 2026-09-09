@@ -23,9 +23,21 @@ import { DirectorStage, type DirectorStageView } from "@/features/rendering/Dire
 import { SimpleControls } from "@/features/simple-controls/SimpleControls";
 import { TemplateGallery } from "@/features/shot-library/TemplateGallery";
 import { appShotStore } from "@/state/app-shot-store";
-import { attachSessionPersistence, safeLocalStorage } from "@/state/session-persistence";
+import {
+  attachSessionPersistence,
+  safeLocalStorage,
+  type PersistenceStatus,
+} from "@/state/session-persistence";
 
 const DEVELOPMENT_INCLUDE_STATUSES = ["engineering_ready"] as const;
+
+/** Non-canonical footer copy keyed by the real persistence outcome. */
+const PERSISTENCE_STATUS_COPY: Record<PersistenceStatus, string> = {
+  pending: "正在确认本地保存状态…",
+  saved: "已保存到此浏览器（localStorage）",
+  unavailable: "本地保存不可用；编辑仅保留在当前页面",
+  write_failed: "本地保存失败；编辑仍保留在当前页面",
+};
 
 function formatVec3(values: readonly number[]): string {
   return `[${values.map((value) => value.toFixed(2)).join(", ")}]`;
@@ -50,20 +62,23 @@ export default function Home() {
   const hydrated = useStore(appShotStore, (state) => state.hydrated);
   const [view, setView] = useState<DirectorStageView>("director");
   const [warning, setWarning] = useState("");
+  // UI/infrastructure state only — never camera, character, scene or any
+  // ShotState truth, so React local state is the right home for it.
+  const [persistenceStatus, setPersistenceStatus] = useState<PersistenceStatus>("pending");
 
   // Session persistence: hydrate once on mount (never during SSR), then save
-  // every new canonical ShotState. Falls back silently to a fresh session.
-  useEffect(() => {
-    const storage = safeLocalStorage();
-    if (storage === null) {
-      appShotStore.setState({ hydrated: true });
-      return;
-    }
-    return attachSessionPersistence(appShotStore, {
-      storage,
-      templates: COMPILED_SHOT_TEMPLATES,
-    });
-  }, []);
+  // every new canonical ShotState. `hydrated` still only means "the restore
+  // attempt has finished"; every footer status — including `unavailable` for
+  // an unusable storage — arrives through the adapter's real-outcome callback.
+  useEffect(
+    () =>
+      attachSessionPersistence(appShotStore, {
+        storage: safeLocalStorage(),
+        templates: COMPILED_SHOT_TEMPLATES,
+        onStatusChange: setPersistenceStatus,
+      }),
+    [],
+  );
 
   const fovDeg =
     shotState === null
@@ -154,9 +169,7 @@ export default function Home() {
                 {shotState.characters[1].rotationYDeg}°
               </span>
               <span data-testid="footer-persisted">
-                {hydrated
-                  ? "session persisted locally (localStorage)"
-                  : "session hydration pending"}
+                {PERSISTENCE_STATUS_COPY[persistenceStatus]}
               </span>
             </footer>
           </div>

@@ -10,6 +10,7 @@ import {
   persistSession,
   readPersistedSession,
   safeLocalStorage,
+  type PersistenceOutcome,
   type SessionStorage,
 } from "@/state/session-persistence";
 import { loadRealTemplates } from "../helpers/content-test-utils";
@@ -27,6 +28,45 @@ function memoryStorage(initial: Record<string, string> = {}): SessionStorage & {
       data.delete(key);
     },
     dump: () => Object.fromEntries(data),
+  };
+}
+
+/** memoryStorage plus write/remove accounting and per-key write failures. */
+function trackedStorage(initial: Record<string, string> = {}): SessionStorage & {
+  dump(): Record<string, string>;
+  sessionWrites: number;
+  removals: string[];
+  failWritesFor(key: string): void;
+} {
+  const data = new Map(Object.entries(initial));
+  const failingKeys = new Set<string>();
+  const removals: string[] = [];
+  let sessionWrites = 0;
+  return {
+    getItem: (key) => (data.has(key) ? data.get(key)! : null),
+    setItem: (key, value) => {
+      if (failingKeys.has(key)) {
+        throw new Error("QuotaExceededError");
+      }
+      if (key === SESSION_STORAGE_KEY) {
+        sessionWrites += 1;
+      }
+      data.set(key, value);
+    },
+    removeItem: (key) => {
+      removals.push(key);
+      data.delete(key);
+    },
+    dump: () => Object.fromEntries(data),
+    get sessionWrites() {
+      return sessionWrites;
+    },
+    get removals() {
+      return removals;
+    },
+    failWritesFor: (key) => {
+      failingKeys.add(key);
+    },
   };
 }
 
@@ -286,5 +326,160 @@ describe("attachSessionPersistence", () => {
     detach();
     store.getState().selectTemplate("dialogue_ots_a_to_b");
     expect(storage.dump()[SESSION_STORAGE_KEY]).toBeUndefined();
+  });
+});
+
+describe("attachSessionPersistence — status reporting (P2-1 fix)", () => {
+  it("reports saved after restoring a valid persisted session", async () => {
+    const templates = await realTemplates();
+    const state = await otsState("status-restore");
+    const storage = memoryStorage({ [SESSION_STORAGE_KEY]: serializeSession(state) });
+    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const statuses: PersistenceOutcome[] = [];
+    const detach = attachSessionPersistence(store, {
+      storage,
+      templates,
+      onStatusChange: (status) => statuses.push(status),
+    });
+    detach();
+    expect(store.getState().shotState?.id).toBe("status-restore");
+    expect(statuses).toEqual(["saved"]);
+  });
+
+  it("reports saved after a new canonical ShotState is written", async () => {
+    const templates = await realTemplates();
+    const storage = trackedStorage();
+    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const statuses: PersistenceOutcome[] = [];
+    const detach = attachSessionPersistence(store, {
+      storage,
+      templates,
+      onStatusChange: (status) => statuses.push(status),
+    });
+    try {
+      store.getState().selectTemplate("dialogue_ots_a_to_b");
+      expect(statuses).toEqual(["saved"]);
+      expect(storage.sessionWrites).toBe(1);
+      expect(storage.dump()[SESSION_STORAGE_KEY]).toBeDefined();
+    } finally {
+      detach();
+    }
+  });
+
+  it("reports unavailable for null storage, keeps the session memory-only and never writes", async () => {
+    const templates = await realTemplates();
+    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const statuses: PersistenceOutcome[] = [];
+    const detach = attachSessionPersistence(store, {
+      storage: null,
+      templates,
+      onStatusChange: (status) => statuses.push(status),
+    });
+    try {
+      expect(store.getState().hydrated).toBe(true);
+      expect(statuses).toEqual(["unavailable"]);
+      // The studio still works: a session can be created and edited in memory
+      // without any persistence attempt or further status noise.
+      store.getState().selectTemplate("dialogue_ots_a_to_b");
+      store.getState().makeCloser();
+      expect(store.getState().shotState).not.toBeNull();
+      expect(statuses).toEqual(["unavailable"]);
+    } finally {
+      detach();
+    }
+  });
+
+  it("reports write_failed when setItem throws and NEVER clears or rolls back the in-memory ShotState", async () => {
+    const templates = await realTemplates();
+    const previous = await otsState("status-previous");
+    const storage = trackedStorage({ [SESSION_STORAGE_KEY]: serializeSession(previous) });
+    storage.failWritesFor(SESSION_STORAGE_KEY);
+    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const statuses: PersistenceOutcome[] = [];
+    const detach = attachSessionPersistence(store, {
+      storage,
+      templates,
+      onStatusChange: (status) => statuses.push(status),
+    });
+    try {
+      // Restore still works (getItem is fine): the previous session is live.
+      expect(statuses).toEqual(["saved"]);
+      expect(store.getState().shotState?.id).toBe("status-previous");
+
+      store.getState().selectTemplate("dialogue_ots_a_to_b");
+      expect(statuses).toEqual(["saved", "write_failed"]);
+      // The new canonical state stays in memory — editing continues.
+      const liveId = store.getState().shotState?.id;
+      expect(liveId).not.toBe("status-previous");
+      store.getState().makeCloser();
+      expect(store.getState().shotState?.id).toBe(liveId);
+      expect(statuses).toEqual(["saved", "write_failed", "write_failed"]);
+      // A failed write neither deletes the stored previous session nor
+      // replaces it with stale bytes.
+      expect(storage.dump()[SESSION_STORAGE_KEY]).toBe(serializeSession(previous));
+      expect(storage.removals).toEqual([]);
+    } finally {
+      detach();
+    }
+  });
+
+  it("reports exactly once per state change and tolerates a store-touching callback (no duplicate saves, no recursion)", async () => {
+    const templates = await realTemplates();
+    const storage = trackedStorage();
+    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const statuses: PersistenceOutcome[] = [];
+    const detach = attachSessionPersistence(store, {
+      storage,
+      templates,
+      // Even a badly-behaved callback that re-touches the store synchronously
+      // must not trigger a second write or an infinite subscription loop.
+      onStatusChange: (status) => {
+        statuses.push(status);
+        store.setState({});
+      },
+    });
+    try {
+      store.getState().selectTemplate("dialogue_ots_a_to_b");
+      expect(statuses).toEqual(["saved"]);
+      expect(storage.sessionWrites).toBe(1);
+
+      store.getState().makeCloser();
+      expect(statuses).toEqual(["saved", "saved"]);
+      expect(storage.sessionWrites).toBe(2);
+    } finally {
+      detach();
+    }
+  });
+
+  it("keeps malformed / version-mismatch / schema-invalid fallback identical with a callback attached (no status claimed)", async () => {
+    const templates = await realTemplates();
+    const state = await otsState("status-fallback");
+    const future = JSON.stringify({
+      kind: "storyboard-director-session",
+      version: 99,
+      shotState: state,
+    });
+    const schemaInvalid = serializeSession({
+      ...state,
+      camera: { ...state.camera, focalLengthMm: 500 },
+    });
+
+    for (const raw of ["{malformed", future, schemaInvalid]) {
+      const storage = memoryStorage({ [SESSION_STORAGE_KEY]: raw });
+      const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+      const statuses: PersistenceOutcome[] = [];
+      const detach = attachSessionPersistence(store, {
+        storage,
+        templates,
+        onStatusChange: (status) => statuses.push(status),
+      });
+      detach();
+      expect(store.getState().hydrated).toBe(true);
+      expect(store.getState().shotState).toBeNull();
+      expect(storage.dump()[SESSION_STORAGE_KEY]).toBeUndefined();
+      // Nothing was restored and nothing was written: the UI truthfully stays
+      // "pending" instead of claiming "saved".
+      expect(statuses).toEqual([]);
+    }
   });
 });

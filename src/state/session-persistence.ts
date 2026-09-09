@@ -4,7 +4,8 @@
  * localStorage only — no database, no account, no server call. The envelope
  * format and validation live in the pure codec
  * (src/domain/session-codec.ts); this module owns the browser boundary:
- * reading, writing, safe fallback and store wiring.
+ * reading, writing, safe fallback, store wiring and reporting the REAL
+ * persistence outcome to the UI (never a claim based on hydration alone).
  *
  * Safety rules:
  * - every storage access is guarded for SSR (no window) and wrapped in
@@ -112,29 +113,70 @@ export function persistSession(storage: SessionStorage, shotState: ShotState): b
   }
 }
 
+/**
+ * Non-canonical UI status of local session persistence. This is footer
+ * truthfulness only — never part of ShotState or any exportable state.
+ * `pending` is the caller's initial state; the adapter reports every other
+ * value: `unavailable` when storage cannot be used at all, `saved` /
+ * `write_failed` per real write outcome.
+ */
+export type PersistenceStatus = "pending" | "saved" | "unavailable" | "write_failed";
+
+/** The subset of statuses this adapter can report. */
+export type PersistenceOutcome = Extract<
+  PersistenceStatus,
+  "saved" | "unavailable" | "write_failed"
+>;
+
 export interface AttachSessionPersistenceOptions {
-  storage: SessionStorage;
+  /** A storage, or null when the browser boundary says storage is unusable. */
+  storage: SessionStorage | null;
   templates: readonly ShotTemplate[];
+  /**
+   * Optional UI status reporting: called with `unavailable` for null storage,
+   * `saved` after a valid session is restored (it literally came from
+   * storage) and after every persistSession outcome. Never called for a null
+   * restore — the UI stays `pending` until the first real write.
+   */
+  onStatusChange?: (status: PersistenceOutcome) => void;
 }
 
 /**
  * Hydrates the store once from storage (marking it hydrated even when
- * nothing could be restored), then subscribes so every new canonical
- * ShotState is persisted. Returns a detach function for React effects.
+ * nothing could be restored — and also when storage is null, in which case
+ * `unavailable` is reported and nothing is ever written), then subscribes so
+ * every new canonical ShotState is persisted. Status reporting is best-effort
+ * UI information: a `write_failed` outcome never clears or rolls back the
+ * in-memory state. Returns a detach function for React effects.
  */
 export function attachSessionPersistence(
   store: ShotStoreApi,
   options: AttachSessionPersistenceOptions,
 ): () => void {
+  const report = options.onStatusChange;
+  if (options.storage === null) {
+    if (!store.getState().hydrated) {
+      store.setState({ hydrated: true });
+    }
+    report?.("unavailable");
+    return () => {};
+  }
+  const storage = options.storage;
   if (!store.getState().hydrated) {
-    const restored = readPersistedSession(options.storage, options.templates);
+    const restored = readPersistedSession(storage, options.templates);
     store.setState(
       restored === null ? { hydrated: true } : { shotState: restored, hydrated: true },
     );
+    if (restored !== null) {
+      report?.("saved");
+    }
   }
   return store.subscribe((state, previous) => {
     if (state.shotState !== previous.shotState && state.shotState !== null) {
-      persistSession(options.storage, state.shotState);
+      // Evaluate the write FIRST: `report?.(persistSession(...) ? ...)` would
+      // short-circuit and skip the write entirely when no callback is given.
+      const persisted = persistSession(storage, state.shotState);
+      report?.(persisted ? "saved" : "write_failed");
     }
   });
 }

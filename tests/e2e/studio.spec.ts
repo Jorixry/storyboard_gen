@@ -387,6 +387,8 @@ test("a page refresh restores the same session and ShotState ID", async ({ page 
   await expect(page.getByTestId("footer-camera")).toContainText("50mm");
   await expect(page.getByTestId("footer-camera")).toContainText("9:16");
   const idBefore = await page.getByTestId("footer-shot-state").textContent();
+  // The persisted claim is backed by a real write, not by hydration alone.
+  await expect(page.getByTestId("footer-persisted")).toContainText("已保存到此浏览器");
 
   await page.reload();
   await expect(page.getByTestId("studio-workspace")).toBeVisible();
@@ -395,6 +397,86 @@ test("a page refresh restores the same session and ShotState ID", async ({ page 
   // Edited values survive the round trip, not just the template defaults.
   await expect(page.getByTestId("footer-camera")).toContainText("50mm");
   await expect(page.getByTestId("footer-camera")).toContainText("9:16");
+  // The restored session reports as saved again — it literally came from
+  // localStorage.
+  await expect(page.getByTestId("footer-persisted")).toContainText("已保存到此浏览器");
+});
+
+test("selecting a template reports the local session as saved", async ({ page }) => {
+  await page.goto("/");
+  await selectTemplate(page, "dialogue_ots_a_to_b");
+  await waitForReadyView(page, "director");
+  await expect(page.getByTestId("footer-persisted")).toHaveText("已保存到此浏览器（localStorage）");
+  // The footer claim is backed by an actual envelope in localStorage.
+  const stored = await page.evaluate((key) => window.localStorage.getItem(key), SESSION_KEY);
+  expect(stored).toContain("storyboard-director-session");
+});
+
+test("a disabled localStorage keeps the studio usable and reports unavailability", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", {
+      get() {
+        throw new Error("SecurityError: storage access is denied");
+      },
+    });
+  });
+  await page.goto("/");
+  await expect(page.getByTestId("studio-root")).toBeVisible();
+  await selectTemplate(page, "dialogue_ots_a_to_b");
+  await waitForReadyView(page, "director");
+  await expect(page.getByTestId("footer-persisted")).toHaveText(
+    "本地保存不可用；编辑仅保留在当前页面",
+  );
+  // Editing continues purely in memory (makeCloser moves the camera from
+  // z=2.00 to z=1.60).
+  await page.getByTestId("control-closer").click();
+  await expect(page.getByTestId("footer-camera")).toContainText("1.60]");
+});
+
+test("a failing session write keeps editing alive and reports write_failed", async ({ page }) => {
+  await page.addInitScript((key) => {
+    const storage = window.localStorage;
+    const originalSetItem = storage.setItem.bind(storage);
+    storage.setItem = (name: string, value: string) => {
+      // The availability probe (a different key) passes; only the real
+      // session key fails, e.g. quota exhausted.
+      if (name === key) {
+        throw new Error("QuotaExceededError");
+      }
+      originalSetItem(name, value);
+    };
+  }, SESSION_KEY);
+  await page.goto("/");
+  await selectTemplate(page, "dialogue_ots_a_to_b");
+  await waitForReadyView(page, "director");
+  await expect(page.getByTestId("footer-persisted")).toHaveText(
+    "本地保存失败；编辑仍保留在当前页面",
+  );
+  await page.getByTestId("control-closer").click();
+  await expect(page.getByTestId("footer-camera")).toContainText("1.60]");
+});
+
+test("no hydration warnings across load, edit and reload", async ({ page }) => {
+  const problems: string[] = [];
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      /hydrat|did not match|minified react error/i.test(message.text())
+    ) {
+      problems.push(message.text());
+    }
+  });
+  page.on("pageerror", (error) => problems.push(String(error)));
+  await page.goto("/");
+  await selectTemplate(page, "dialogue_ots_a_to_b");
+  await waitForReadyView(page, "director");
+  await expect(page.getByTestId("footer-persisted")).toContainText("已保存到此浏览器");
+  await page.reload();
+  await expect(page.getByTestId("studio-workspace")).toBeVisible();
+  await expect(page.getByTestId("footer-persisted")).toContainText("已保存到此浏览器");
+  expect(problems).toEqual([]);
 });
 
 test("malformed persisted sessions fall back safely without crashing", async ({ page }) => {
