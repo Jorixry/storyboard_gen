@@ -259,9 +259,9 @@ export function emphasizeCharacter(state: ShotState, characterId: CharacterId): 
 }
 
 /**
- * Applies a provisional ENGINEERING focal-length preset. The 35/50 mm values
- * mirror the current templates; 24/85 mm are engineering extensions. These are
- * NOT director-approved rules.
+ * Applies a provisional ENGINEERING focal-length preset. The 35 mm value
+ * matches the medium two-shot; 50 mm remains an editable preset, not the
+ * OTS default (75 mm since D025). These are NOT director-approved rules.
  */
 export function setFocalFeel(state: ShotState, preset: FocalFeelPresetId): ShotState {
   return setCameraFocalLength(state, FOCAL_FEEL_PRESETS[preset]);

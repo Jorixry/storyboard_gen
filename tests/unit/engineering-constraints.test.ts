@@ -103,7 +103,7 @@ describe("constraint constants match the content Schema and command semantics", 
     expect(FOCAL_LENGTH_MAX_MM).toBe(200);
   });
 
-  it("focal presets include the two focal lengths the current templates ship", async () => {
+  it("distinguishes current template defaults from editable focal presets", async () => {
     const templates = await loadRealTemplates();
     const shipped = templates.map((template) => template.camera.focalLengthMm).sort();
     expect(shipped).toEqual([35, 75, 75]); // OTS v2 templates execute at 75mm (D025)

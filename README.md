@@ -6,7 +6,9 @@ The user selects an understandable 2D shot example, adjusts a constrained 3D sce
 
 ## Current status
 
-The workspace contains the agreed product definition, MVP boundaries, architecture, three `engineering_ready` Director-v2 shot templates, split OTS reference images and a staged implementation plan. Prompt 0/readiness work is complete; application code and the initial Git commit do not exist yet. The code-delivery target is two flexible elapsed weeks using zcode for bounded implementation and Codex for independent acceptance.
+Prompts 1–6 are implemented; the developer confirmed Prompt 6 acceptance and remote push on 2026-09-10. The application supports constrained 3D editing, movement preview, raw export and deterministic generic prompt compilation. Production image generation and target-model prompt support remain pending Prompt 7's provider spike.
+
+The current focal baseline is D025: both OTS templates are v2 with 75mm for the current camera and movement start/end, and `focal_75mm` prompt semantics. The medium two-shot remains v1 at 35mm. All three templates remain `engineering_ready`; focal confirmation does not approve their composition or other directing content. Camera positions, targets, blocking and split OTS references are unchanged. Foreground-shoulder framing still requires Director review.
 
 The supplied `aigc_project.rar` is an audited Python proof of concept, not the product scaffold. It is intentionally ignored and must be selectively ported according to the integration review.
 

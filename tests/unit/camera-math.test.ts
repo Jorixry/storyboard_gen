@@ -39,7 +39,7 @@ describe("activeVerticalGateMm (36mm long-edge virtual film gate)", () => {
 });
 
 describe("verticalFovRad / verticalFovDeg", () => {
-  it("matches the film-gate formula for 16:9 at 50mm (OTS templates)", () => {
+  it("matches the film-gate formula for 16:9 at the 50mm editable preset", () => {
     expect(verticalFovRad(50, "16:9")).toBeCloseTo(0.3995964924806295, 12);
     expect(verticalFovDeg(50, "16:9")).toBeCloseTo(22.895192527371208, 9);
   });

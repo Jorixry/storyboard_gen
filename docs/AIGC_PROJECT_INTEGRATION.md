@@ -73,7 +73,7 @@ The generated PNGs were inspected. They prove a basic camera mapping can render,
 | Archive artifact or idea | Target in this repository | Action |
 |---|---|---|
 | CSV/Schema validation concepts | `scripts/validate-content.ts`, `src/domain/` | Reimplement against the strict current Schema |
-| Camera/character candidate numbers | Test fixture or dated spike record | Keep as a 75mm alternative only after Director confirms lineage |
+| Camera/character candidate numbers | Test fixture or dated spike record | D025 authorizes only 75mm focal length in OTS v2; other archive coordinates/blocking remain unapproved |
 | Mirrored OTS relationship | Domain invariant tests | Port semantically using the current coordinate convention |
 | 0.30m single-direction dolly | Movement fixture | Compare with current start/end values; do not overwrite silently |
 | Screen-space statistics | `src/domain/` geometry checks or browser tests | Rewrite with exact definitions for horizontal occupancy, eyeline and axis |
@@ -86,17 +86,17 @@ The generated PNGs were inspected. They prove a basic camera mapping can render,
 ## Safe integration sequence
 
 1. Establish a reviewed Git baseline before application scaffolding; the repository currently has no commits.
-2. Ask the project initiator whether the archive's 75mm CSV is a later authorized Director revision or another developer's engineering rewrite. Record the answer in `docs/DECISIONS.md` before changing templates.
+2. Apply the recorded D025 focal decision: both OTS templates execute at 75mm from v2. This does not authorize the archive CSV as a whole or any other archive data.
 3. Execute Prompt 1 to scaffold the TypeScript Web application. Do not add Python as a production runtime.
 4. Execute Prompt 2 to implement the current strict Schema, content compiler and canonical `ShotState`.
 5. Port only model-independent invariants: mirrored OTS cameras, same-side-of-axis, shared pair focal length, start/end movement and measurable framing checks.
-6. During Prompt 3, create a clearly labeled alternative 75mm engineering fixture only if comparison is useful. It must not enter the gallery or overwrite the current 50mm template before the Director decision.
+6. Use the current 75mm OTS v2 templates for Web review. Retain former 50mm material only as historical evidence; do not change camera positions, targets or blocking without a separate Director decision.
 7. Re-render all three templates in the Web 3D stage with a visible camera/frustum in director view.
 8. Return Web-generated director/camera/start/end views to the Director. Only written approval advances `reviewStatus`.
 
 ## Requested follow-up from collaborators
 
-From the project initiator/director, request one written answer covering the four focal/reference questions in `docs/OPEN_QUESTIONS.md`.
+The executable focal-length answer is recorded in D025. Request Director review of the current 75mm framing and remaining content questions in `docs/OPEN_QUESTIONS.md`; do not reopen the settled focal-length decision.
 
 From the other developer, a resend is optional rather than blocking. If their prototype should retain useful history or attribution, ask for a clean Git commit/branch or source-only archive containing `shot-template-demo/`, with both virtual environments, caches, generated duplicates and editor files removed. Ask them to include:
 

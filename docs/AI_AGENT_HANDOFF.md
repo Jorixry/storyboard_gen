@@ -1,8 +1,22 @@
 # AI Agent Handoff
 
-Last updated: 2026-09-05
+Last updated: 2026-09-11
 
-## Start state
+## Current handoff baseline
+
+- Prompts 1–6 are implemented and accepted; the developer confirmed Prompt 6 acceptance and remote push on 2026-09-10.
+- D025 sets both OTS templates to v2 at 75mm for current/start/end and `focal_75mm` semantics. The medium two-shot stays v1 at 35mm. All remain `engineering_ready`; camera positions, targets, blocking and reference images are unchanged.
+- The next implementation packet is Prompt 7's read-only provider spike. Paid calls still require explicit authorization; production provider/model support remains unconfirmed.
+- The start state and Prompt 1 instructions below are retained as historical onboarding records, not instructions to restart the project.
+
+### Branch reconciliation (2026-09-11)
+
+- Keep accepted main commit `28a5098` as the Prompt 6 implementation baseline. The parallel implementation at `feature/acceptance-test` commit `335efd1` shares parent `38eb4a8` but is not merged into main. Do not add its second normalized-spec/compiler path or revert OTS templates to v1.
+- Retain the collaborator branch for reference. Its Vitest major upgrade is deferred to a separate dependency-maintenance packet with advisory/version verification and main's tests; no dependency upgrade is included in this baseline reconciliation.
+- Adopt the developer's provisional Seedance v2.0 Pro selection as D026; verify the official model identity and capabilities during Prompt 7 before claiming support. Image-provider selection and paid-call authorization remain separate gates.
+- Baseline revision checks: 349 unit tests and 17 director-stage/raw-export browser tests passed, including the existing 75mm visual baselines; content validation, lint, TypeScript, build, changed-file formatting and diff whitespace checks passed. Local tool entry points were used because the npm wrapper failed; content validation and browser launch needed execution outside the sandbox. No paid provider calls were made. These checks validate main, not the collaborator branch.
+
+## Historical start state (2026-09-05)
 
 - Prompt 0 readiness audit is complete.
 - Three Director-v2 rows have been mapped to Schema-valid YAML with `reviewStatus: engineering_ready`.
@@ -66,7 +80,7 @@ If a future provider task requires a credential, the human configures it locally
 
 Do not have zcode and Codex edit the same working directory concurrently. Review can run in parallel only on an immutable commit or separate worktree.
 
-## Next zcode prompt
+## Historical first zcode prompt (Prompt 1)
 
 Copy the following as the first new implementation task:
 
@@ -138,4 +152,3 @@ Record in the task summary or a dated project note:
 - adapter/provider calls made and cost (normally zero);
 - open questions or Director decisions created;
 - acceptance verdict and reviewer.
-

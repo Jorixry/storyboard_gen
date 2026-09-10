@@ -1,6 +1,6 @@
 # Decision Log
 
-Last updated: 2026-09-10
+Last updated: 2026-09-11
 
 This file records decisions already settled in discussion. Codex should not reopen them during implementation unless new evidence creates a concrete conflict.
 
@@ -31,13 +31,14 @@ This file records decisions already settled in discussion. Codex should not reop
 | D023 | The MVP code-delivery target is two elapsed weeks (ten working days), with flexible calendar timing. External review/validation timing does not silently expand the code scope. | Confirmed |
 | D024 | Development is AI-first: zcode/OpenCode/GLM may implement bounded packets and Codex independently accepts them; human and Director approval gates remain authoritative. | Confirmed |
 | D025 | The project initiator confirmed in writing on 2026-09-10 that both OTS templates' executable focal length is 75mm (current, movement start and end, and the `focal_75mm` semantics token). Template version bumped to v2; `dialogue_medium_two_shot` keeps 35mm. Camera positions, targets and character blocking were NOT changed to match reference images. This resolves only the focal-length question: `aigc_project.rar` remains quarantined, none of its other contents are approved by this decision, and both OTS templates stay `engineering_ready` (not `approved`). | Confirmed by project initiator |
+| D026 | On 2026-09-11 the developer confirmed Seedance v2.0 Pro as the provisional first target video model. Prompt 7 must verify the official model identifier/version, API availability and accepted input types before implementing or claiming target-model support. This does not select an image provider or authorize paid calls. | Provisionally selected; technical verification pending |
 
 ## Open implementation gates
 
 These are intentionally unresolved and belong in the technical spike or content handoff:
 
 1. Which image-generation provider best preserves the 3D composition while applying character/style references?
-2. Which exact external video model/version is used for the first prompt adapter?
+2. Verify the official identifier/version and input behavior of the provisionally selected Seedance v2.0 Pro (D026).
 3. Which 8-12 two-person-dialogue templates are professionally approved by the project initiator?
 4. What measurable threshold determines whether the validation proceeds to a larger MVP?
 5. Are movement-reference video exports useful for the selected external model, or are guide frames plus text sufficient?

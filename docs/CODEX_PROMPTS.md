@@ -46,7 +46,7 @@ Execute only Phase 1 Day 2 from docs/IMPLEMENTATION_PLAN.md.
 
 Implement framework-independent TypeScript/Zod schemas for ShotTemplate and ShotState. Build scripts that validate YAML templates and compile them into typed application data. Ensure production-facing template loading excludes every reviewStatus except approved, while tests may load engineering placeholders explicitly.
 
-Keep the current repository's 50mm OTS values until the Director resolves the archive's divergent 75mm input. A 75mm value may appear only in a clearly labeled comparison fixture, never as a silent content rewrite.
+Use the D025-confirmed 75mm OTS baseline (template v2): current camera, movement start/end and focal_75mm semantics must agree. Keep the medium two-shot at 35mm. This confirmation covers focal length only; preserve the existing camera positions, targets, blocking, reference images and engineering_ready status. The archive remains quarantined.
 
 Add tests proving:
 - the placeholder YAML is structurally valid;

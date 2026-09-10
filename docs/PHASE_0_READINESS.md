@@ -2,6 +2,8 @@
 
 Last updated: 2026-09-05
 
+Historical Phase 0 record. Update 2026-09-10: D025 resolves the executable focal-length gate below: both OTS templates now use 75mm in template v2 and remain `engineering_ready`. Prompts 1–6 have since been implemented and accepted (Prompt 6 acceptance/push confirmed by the developer). The original observations below describe the pre-scaffold state, not today's baseline.
+
 ## Status
 
 - Prompt 0 was read-only; no project files were modified.
@@ -16,7 +18,7 @@ Last updated: 2026-09-05
 ## Remaining gates
 
 - Default movement confirmation by the director.
-- Director confirmation of current 50mm versus archive 75mm OTS input lineage.
+- Executable OTS focal length: resolved by D025 (75mm); this does not approve the archive's other contents or establish its entire lineage.
 - 3D preview and director approval.
 - Generic prompt fixture review.
 - Provider spike candidates and target model.
