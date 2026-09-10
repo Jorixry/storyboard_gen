@@ -276,7 +276,7 @@ describe("resetShotStateToTemplate", () => {
     expect(reset.aspectRatio).toBe("16:9");
     expect(reset.camera.position).toEqual(template.camera.position);
     expect(reset.camera.target).toEqual(template.camera.target);
-    expect(reset.camera.focalLengthMm).toBe(50);
+    expect(reset.camera.focalLengthMm).toBe(75); // OTS v2 template default (D025)
     expect(reset.characters).toEqual(template.characters);
     expect(reset.movement).toEqual(template.movement);
     expect(reset.semantics).toEqual(template.promptSemantics);
@@ -356,11 +356,11 @@ describe("command purity — invariants every command must keep", () => {
     },
   );
 
-  it("keeps the two OTS movement poses at 50mm after any current-camera edit", async () => {
+  it("keeps the two OTS movement poses at 75mm after any current-camera edit", async () => {
     const state = await stateFrom("dialogue_ots_a_to_b");
     const next = setFocalFeel(makeCloser(state), "compressed");
-    expect(next.movement.start.focalLengthMm).toBe(50);
-    expect(next.movement.end.focalLengthMm).toBe(50);
+    expect(next.movement.start.focalLengthMm).toBe(75);
+    expect(next.movement.end.focalLengthMm).toBe(75);
   });
 });
 
@@ -389,11 +389,11 @@ describe("focal commands synchronize the canonical focal semantics (no contradic
   });
 
   it("is idempotent: re-applying the same focal length neither duplicates nor reorders", async () => {
-    const state = await stateFrom("dialogue_ots_a_to_b");
-    const once = setCameraFocalLength(state, 50);
+    const state = await stateFrom("dialogue_ots_a_to_b"); // v2 template default: 75mm
+    const once = setCameraFocalLength(state, 75);
     expect(once.semantics.optics).toEqual(state.semantics.optics);
     expect(once.semantics.optics.filter((t) => t.startsWith("focal_"))).toHaveLength(1);
-    const twice = setCameraFocalLength(once, 50);
+    const twice = setCameraFocalLength(once, 75);
     expect(twice.semantics.optics).toEqual(once.semantics.optics);
   });
 

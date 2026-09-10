@@ -1,6 +1,7 @@
 # `aigc_project.rar` Integration Review
 
 Review date: 2026-09-05
+Addendum 2026-09-10: the project initiator confirmed in writing that both OTS templates' executable focal length is **75mm** (docs/DECISIONS.md D025). Template v2 applies 75mm to current/start/end and the `focal_75mm` token without changing camera positions, targets or blocking. This answers the focal-length question only: every other finding below stands, the archive remains quarantined, and nothing else in it is approved by this confirmation.
 
 ## Decision
 

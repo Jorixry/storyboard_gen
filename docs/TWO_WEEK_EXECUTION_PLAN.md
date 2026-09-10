@@ -49,7 +49,7 @@ The delivery does not include Director approval, production provider credentials
 
 ### Does not block Day 1-5
 
-- unresolved 50mm-versus-75mm archive conflict: keep current 50mm data and label it `engineering_ready` until confirmed;
+- 50mm-versus-75mm archive conflict: RESOLVED 2026-09-10 (D025) — both OTS templates execute at 75mm from template v2 and remain `engineering_ready`; the archive itself stays quarantined;
 - production image provider choice: use the mock;
 - final target video model: produce generic prompt output and keep provider adapter explicitly provisional;
 - Director approval: development gallery may expose fixtures only behind a development label/flag.

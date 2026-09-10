@@ -142,3 +142,18 @@ export const promptSemanticsSchema = z.strictObject({
   continuity: semanticListSchema,
 });
 export type PromptSemantics = z.infer<typeof promptSemanticsSchema>;
+
+/**
+ * The five semantic categories, in their canonical order. The adapter-content
+ * ordering (content/adapters/generic-video.yaml) must be a permutation of
+ * exactly these keys; the generic prompt compiler renders one section per
+ * category in the configured order.
+ */
+export const SEMANTIC_CATEGORIES = [
+  "subjects",
+  "composition",
+  "optics",
+  "motion",
+  "continuity",
+] as const;
+export type SemanticCategory = (typeof SEMANTIC_CATEGORIES)[number];

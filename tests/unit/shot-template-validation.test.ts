@@ -19,22 +19,30 @@ describe("real repository content", () => {
     ]);
   });
 
-  it("keeps every current template at version 1 and engineering_ready (never approved)", async () => {
+  it("keeps templates at their current versions and engineering_ready (never approved)", async () => {
     const templates = await loadRealTemplates();
+    const expectedVersions: Record<string, number> = {
+      // OTS bumped to v2 by the D025 focal change (50mm -> 75mm).
+      dialogue_medium_two_shot: 1,
+      dialogue_ots_a_to_b: 2,
+      dialogue_ots_b_to_a: 2,
+    };
     for (const template of templates) {
-      expect(template.version).toBe(1);
+      expect(template.version).toBe(expectedVersions[template.id]);
       expect(template.reviewStatus).toBe("engineering_ready");
     }
   });
 
-  it("keeps both OTS templates at the current 50mm handoff values", async () => {
+  it("applies the D025-confirmed 75mm executable focal to both OTS templates", async () => {
     const templates = await loadRealTemplates();
     for (const id of ["dialogue_ots_a_to_b", "dialogue_ots_b_to_a"]) {
       const template = templates.find((candidate) => candidate.id === id);
       expect(template).toBeDefined();
-      expect(template?.camera.focalLengthMm).toBe(50);
-      expect(template?.movement.start.focalLengthMm).toBe(50);
-      expect(template?.movement.end.focalLengthMm).toBe(50);
+      expect(template?.camera.focalLengthMm).toBe(75);
+      expect(template?.movement.start.focalLengthMm).toBe(75);
+      expect(template?.movement.end.focalLengthMm).toBe(75);
+      expect(template?.promptSemantics.optics).toContain("focal_75mm");
+      expect(template?.promptSemantics.optics).not.toContain("focal_50mm");
     }
   });
 });

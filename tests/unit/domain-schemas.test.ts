@@ -105,10 +105,11 @@ describe("vec3Schema", () => {
 });
 
 describe("focalLengthSchema", () => {
-  it("accepts the Schema bounds 12 and 200 and the current OTS 50mm value", () => {
+  it("accepts the Schema bounds 12 and 200 plus the OTS 75mm and preset 50mm values", () => {
     expect(focalLengthSchema.safeParse(12).success).toBe(true);
     expect(focalLengthSchema.safeParse(200).success).toBe(true);
-    expect(focalLengthSchema.safeParse(50).success).toBe(true);
+    expect(focalLengthSchema.safeParse(75).success).toBe(true); // OTS v2 default (D025)
+    expect(focalLengthSchema.safeParse(50).success).toBe(true); // portrait focal-feel preset
   });
 
   it("rejects values outside the Schema range", () => {

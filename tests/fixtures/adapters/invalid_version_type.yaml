@@ -1,0 +1,17 @@
+id: generic_video
+version: one
+status: engineering_placeholder
+descriptionZh: version 类型错误，必须被拒绝
+ordering:
+  - subjects
+  - composition
+  - optics
+  - motion
+  - continuity
+constraints:
+  preserveStructuredFacts: true
+  allowLlmPolish: true
+  llmMayChange:
+    - wording
+  llmMayNotChange:
+    - camera_geometry

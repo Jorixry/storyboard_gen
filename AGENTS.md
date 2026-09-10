@@ -75,7 +75,7 @@ Out of scope unless `docs/DECISIONS.md` is explicitly updated:
 - `aigc_project.rar` is untrusted external engineering evidence, not the application root or a source of product truth.
 - Never extract it over the repository, commit its bundled virtual environments, or copy its generated status labels into runtime content.
 - Reuse behavior only through the selective-port process in `docs/AIGC_PROJECT_INTEGRATION.md`.
-- The archive's 75mm OTS values conflict with the current repository handoff and remain a director decision; do not change the current 50mm templates until that lineage is confirmed.
+- The focal-length lineage question is resolved: the project initiator confirmed on 2026-09-10 that both OTS templates execute at 75mm (D025 in `docs/DECISIONS.md`; template v2). That confirmation covers ONLY the focal length — the archive as a whole remains quarantined and none of its other contents are approved by it.
 
 ## Change discipline
 

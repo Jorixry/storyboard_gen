@@ -1,0 +1,18 @@
+generic-video-prompt: model-agnostic engineering reference; not tuned for and not claiming support of any specific video model
+source: shot-state=shot-prompt6-ots-b-to-a state-schema=v1 template=dialogue_ots_b_to_a@v2 review-status=engineering_ready adapter=generic_video@1.0.0 adapter-config=v1
+note: compiled deterministically from the canonical ShotState; template review status is engineering_ready, so directing semantics (incl. shoulder-frame share, depth of field, axis and eyeline) are engineering-derived and NOT professionally verified
+protected-facts (must survive any later polish): character_identity, character_position, camera_geometry, focal_length, movement_type, continuity_rules
+
+scene: dialogue_room
+aspect-ratio: 16:9
+camera.current: position=[1.25, 1.7, 2] target=[-0.8, 1.55, 0] focal=75mm shot-size=medium_close_up
+characters: character_a position=[-0.8, 0, 0] facing=90deg; character_b position=[0.8, 0, 0] facing=-90deg
+movement: type=dolly_in duration=4s easing=ease_in_out
+movement.start: position=[1.25, 1.7, 2] target=[-0.8, 1.55, 0] focal=75mm
+movement.end: position=[1.05, 1.68, 1.4] target=[-0.8, 1.55, 0] focal=75mm
+
+subjects: character_a_primary; character_b_shoulder_soft_foreground
+composition: over_the_shoulder; character_b_shoulder_right_foreground; character_a_chest_up_framing; eyes_upper_third
+optics: medium_close_up; focal_75mm; soft_foreground
+motion: subtle_dolly_in
+continuity: maintain_axis; preserve_eyeline; foreground_shoulder_frame; matched_reverse_pair

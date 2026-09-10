@@ -22,7 +22,8 @@ async function main(): Promise<void> {
   console.log(
     `[validate-content] validating templates in ${path.relative(process.cwd(), contentDir)}`,
   );
-  const { templates, issues, templateFileCount } = await validateContent(contentDir);
+  const { templates, adapterConfigs, issues, templateFileCount, adapterConfigFileCount } =
+    await validateContent(contentDir);
 
   if (issues.length > 0) {
     console.error(`[validate-content] FAILED: ${issues.length} issue(s) found:`);
@@ -33,10 +34,14 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `[validate-content] OK: ${templateFileCount} template file(s) valid, ${templates.length} template(s) passed.`,
+    `[validate-content] OK: ${templateFileCount} template file(s) valid, ${templates.length} template(s) passed; ` +
+      `${adapterConfigFileCount} adapter config file(s) valid, ${adapterConfigs.length} adapter config(s) passed.`,
   );
   for (const template of templates) {
     console.log(`  ${template.id} v${template.version} [${template.reviewStatus}]`);
+  }
+  for (const config of adapterConfigs) {
+    console.log(`  adapter ${config.id} v${config.version} [${config.status}]`);
   }
 }
 

@@ -21,17 +21,26 @@ import { parse as parseYaml } from "yaml";
 
 import { formatZodPath, type ContentIssue } from "../../src/domain/errors";
 import { shotTemplateSchema, type ShotTemplate } from "../../src/domain/shot-template";
+import {
+  videoPromptAdapterConfigSchema,
+  type VideoPromptAdapterConfig,
+} from "../../src/domain/video-adapter-config";
 
 export interface ContentValidationResult {
   /** Templates from files with zero issues, sorted by id. */
   templates: ShotTemplate[];
+  /** Adapter-content configs (content/adapters/) with zero issues, sorted by id. */
+  adapterConfigs: VideoPromptAdapterConfig[];
   /** Every issue found, in deterministic file/path order. */
   issues: ContentIssue[];
   /** Number of template YAML files that were checked. */
   templateFileCount: number;
+  /** Number of adapter-content YAML files that were checked. */
+  adapterConfigFileCount: number;
 }
 
 const TEMPLATE_YAML_GLOB_DIR = "templates";
+const ADAPTER_YAML_GLOB_DIR = "adapters";
 
 function toPosix(relativePath: string): string {
   return relativePath.split(path.sep).join("/");
@@ -226,9 +235,84 @@ export async function validateTemplateFile(
 }
 
 /**
+ * Reads, parses and validates one adapter-content YAML file
+ * (content/adapters/*.yaml) against the Zod contract in
+ * src/domain/video-adapter-config.ts. YAML parse failures are reported as a
+ * file-level issue instead of being thrown.
+ */
+export async function validateAdapterConfigFile(
+  file: string,
+  relativePath: string,
+): Promise<{ issues: ContentIssue[]; config: VideoPromptAdapterConfig | null }> {
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(await readFile(file, "utf8"));
+  } catch (error) {
+    return {
+      issues: [
+        {
+          file: relativePath,
+          path: "",
+          message: `YAML parse error: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      config: null,
+    };
+  }
+  const result = videoPromptAdapterConfigSchema.safeParse(parsed);
+  if (!result.success) {
+    return { issues: zodIssues(relativePath, result.error), config: null };
+  }
+  return { issues: [], config: result.data };
+}
+
+/**
+ * Validates every adapter-content YAML under one adapters/ directory:
+ * schema check per file plus cross-file adapter-id uniqueness.
+ * `pathRelativeTo` is the base for reported relative file paths.
+ */
+export async function validateAdapterConfigs(
+  adaptersDir: string,
+  pathRelativeTo: string,
+): Promise<{
+  adapterConfigs: VideoPromptAdapterConfig[];
+  issues: ContentIssue[];
+  fileCount: number;
+}> {
+  const issues: ContentIssue[] = [];
+  const files = await collectYamlFiles(adaptersDir);
+  const adapterConfigs: VideoPromptAdapterConfig[] = [];
+  const seenAdapterIds = new Map<string, string>();
+  for (const file of files) {
+    const relativePath = toPosix(path.relative(pathRelativeTo, file));
+    const result = await validateAdapterConfigFile(file, relativePath);
+    issues.push(...result.issues);
+    if (result.config === null) {
+      continue;
+    }
+    const config = result.config;
+    const firstSeenIn = seenAdapterIds.get(config.id);
+    if (firstSeenIn === undefined) {
+      seenAdapterIds.set(config.id, relativePath);
+      adapterConfigs.push(config);
+    } else {
+      issues.push({
+        file: relativePath,
+        path: "/id",
+        message: `duplicate adapter config id "${config.id}"; already defined in ${firstSeenIn}`,
+      });
+    }
+  }
+  adapterConfigs.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { adapterConfigs, issues, fileCount: files.length };
+}
+
+/**
  * Full content validation pass over contentDir: every template YAML file
  * under templates/ is checked against schema.json + the Zod domain mirror +
- * rule references, plus cross-file template-id uniqueness.
+ * rule references, plus cross-file template-id uniqueness; every adapter
+ * config YAML under adapters/ is checked against its Zod contract plus
+ * cross-file adapter-id uniqueness.
  */
 export async function validateContent(contentDir: string): Promise<ContentValidationResult> {
   const issues: ContentIssue[] = [];
@@ -262,8 +346,20 @@ export async function validateContent(contentDir: string): Promise<ContentValida
     }
   }
 
+  const adapterResult = await validateAdapterConfigs(
+    path.join(contentDir, ADAPTER_YAML_GLOB_DIR),
+    contentDir,
+  );
+  issues.push(...adapterResult.issues);
+
   templates.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return { templates, issues, templateFileCount: files.length };
+  return {
+    templates,
+    adapterConfigs: adapterResult.adapterConfigs,
+    issues,
+    templateFileCount: files.length,
+    adapterConfigFileCount: adapterResult.fileCount,
+  };
 }
 
 /** Output path of the generated compiled-content module. */

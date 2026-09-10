@@ -33,7 +33,7 @@ describe("createShotStore — template selection through the development opt-in"
     expect(first.id).toBe("store-1");
     expect(first.template).toEqual({
       id: "dialogue_ots_a_to_b",
-      version: 1,
+      version: 2, // OTS v2 (D025 75mm)
       reviewStatus: "engineering_ready",
     });
     expect(first.characters.map((c) => c.id).sort()).toEqual(["character_a", "character_b"]);
@@ -183,26 +183,26 @@ describe("createShotStore — resetToTemplate", () => {
     const reset = store.getState().shotState!;
     expect(reset.id).toBe(idBeforeEdits);
     expect(reset.aspectRatio).toBe("16:9");
-    expect(reset.camera.focalLengthMm).toBe(50);
+    expect(reset.camera.focalLengthMm).toBe(75); // OTS v2 template default (D025)
     expect(reset.camera.position).toEqual([-1.25, 1.7, 2]);
     expect(reset.camera.target).toEqual([0.8, 1.55, 0]);
-    expect(reset.movement.start.focalLengthMm).toBe(50);
+    expect(reset.movement.start.focalLengthMm).toBe(75);
   });
 
   it("refuses reset when the session's template version no longer exists", async () => {
     const templates = await loadRealTemplates();
-    const templateV1 = templates.find((t) => t.id === "dialogue_ots_a_to_b")!;
-    const templateV2: ShotTemplate = { ...templateV1, version: 2 };
-    // Session created from v1, but current content only has v2.
+    const templateV2 = templates.find((t) => t.id === "dialogue_ots_a_to_b")!; // real v2
+    const templateV3: ShotTemplate = { ...templateV2, version: 3 };
+    // Session created from v2, but current content only has v3.
     const store = createShotStore({
-      templates: [templateV2],
+      templates: [templateV3],
       includeStatuses: ENGINEERING_READY_ONLY,
       generateId: createSequenceIdFactory("stale"),
     });
     // Seed the store with a v1 state directly (simulating a restored session).
     const { createShotStateFromTemplate } = await import("@/domain/shot-state");
     store.setState({
-      shotState: createShotStateFromTemplate(templateV1, {
+      shotState: createShotStateFromTemplate(templateV2, {
         generateId: createSequenceIdFactory("stale"),
       }),
     });

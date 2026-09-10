@@ -6,12 +6,12 @@
  * editing command changes a value those semantics describe, the semantics must
  * be updated in the same command — otherwise the state contains two mutually
  * contradictory facts (e.g. `camera.focalLengthMm: 85` next to an optics token
- * `focal_50mm`, or a target aimed at character A next to
+ * `focal_75mm`, or a target aimed at character A next to
  * `character_b_primary`).
  *
  * This is an ENGINEERING consistency rule, not new director knowledge:
  * - focal tokens follow the existing template convention `focal_35mm` /
- *   `focal_50mm` and generalize to the clamped focal length;
+ *   `focal_75mm` and generalize to the clamped focal length;
  * - the primary-subject tokens are exactly the three the current templates
  *   ship (`character_a_primary`, `character_b_primary`,
  *   `character_a_and_character_b_equal_prominence`);

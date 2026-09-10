@@ -23,22 +23,22 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
     expect(fixture.template.reviewStatus).toBe("engineering_ready");
     expect(fixture.shotState.template).toEqual({
       id: "dialogue_ots_a_to_b",
-      version: 1,
+      version: 2, // OTS v2 (D025 75mm)
       reviewStatus: "engineering_ready",
     });
     expect(fixture.isDirectorApproved).toBe(false);
   });
 
-  it("keeps the OTS development fixture at 50mm", async () => {
+  it("keeps the OTS development fixture at the D025-confirmed 75mm", async () => {
     const templates = await loadRealTemplates();
     for (const templateId of ["dialogue_ots_a_to_b", "dialogue_ots_b_to_a"]) {
       const fixture = resolveDevelopmentFixture(templates, {
         templateId,
         includeStatuses: ENGINEERING_READY_ONLY,
       });
-      expect(fixture.shotState.camera.focalLengthMm).toBe(50);
-      expect(fixture.shotState.movement.start.focalLengthMm).toBe(50);
-      expect(fixture.shotState.movement.end.focalLengthMm).toBe(50);
+      expect(fixture.shotState.camera.focalLengthMm).toBe(75);
+      expect(fixture.shotState.movement.start.focalLengthMm).toBe(75);
+      expect(fixture.shotState.movement.end.focalLengthMm).toBe(75);
     }
   });
 

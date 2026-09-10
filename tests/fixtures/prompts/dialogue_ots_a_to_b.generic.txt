@@ -1,5 +1,5 @@
 subjects: character_b_primary; character_a_shoulder_soft_foreground
 composition: over_the_shoulder; character_a_shoulder_left_foreground; character_b_chest_up_framing; eyes_upper_third
-optics: medium_close_up; focal_50mm; soft_foreground
+optics: medium_close_up; focal_75mm; soft_foreground
 motion: subtle_dolly_in
 continuity: maintain_axis; preserve_eyeline; foreground_shoulder_frame; matched_reverse_pair

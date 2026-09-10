@@ -26,7 +26,7 @@ interface StageSnapshot {
 /** Canonical ShotState values of the dialogue_ots_a_to_b development fixture. */
 const SHOT_CAMERA_POSITION: [number, number, number] = [-1.25, 1.7, 2];
 const SHOT_CAMERA_TARGET: [number, number, number] = [0.8, 1.55, 0];
-const SHOT_CAMERA_VFOV_DEG = 22.895192527371208; // 2*atan(20.25/100), 16:9 gate
+const SHOT_CAMERA_VFOV_DEG = 15.376895539805746; // 2*atan(20.25/150), 16:9 gate, 75mm (D025)
 const INSPECTION_CAMERA_POSITION: [number, number, number] = [2.7, 2.3, 4.1];
 
 function normalize(vector: [number, number, number]): [number, number, number] {
@@ -63,8 +63,8 @@ test("director stage labels the engineering_ready development fixture", async ({
   await expect(page.getByRole("heading", { name: "Director Stage" })).toBeVisible();
   await expect(page.getByText("DEVELOPMENT FIXTURE", { exact: true })).toBeVisible();
   await expect(page.getByText("engineering_ready · not director approved")).toBeVisible();
-  await expect(page.getByText("dialogue_ots_a_to_b v1")).toBeVisible();
-  await expect(page.getByText(/50mm \(vFOV 22\.90°\) · 16:9/)).toBeVisible();
+  await expect(page.getByText("dialogue_ots_a_to_b v2")).toBeVisible();
+  await expect(page.getByText(/75mm \(vFOV 15\.38°\) · 16:9/)).toBeVisible();
 });
 
 test("director view shows both mannequins, the shot camera and its frustum from the inspection camera", async ({

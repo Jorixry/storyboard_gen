@@ -1,6 +1,6 @@
 # Decision Log
 
-Last updated: 2026-09-05
+Last updated: 2026-09-10
 
 This file records decisions already settled in discussion. Codex should not reopen them during implementation unless new evidence creates a concrete conflict.
 
@@ -30,6 +30,7 @@ This file records decisions already settled in discussion. Codex should not reop
 | D022 | Current priority is technical/product development, not negotiating detailed intellectual-property terms. | Confirmed |
 | D023 | The MVP code-delivery target is two elapsed weeks (ten working days), with flexible calendar timing. External review/validation timing does not silently expand the code scope. | Confirmed |
 | D024 | Development is AI-first: zcode/OpenCode/GLM may implement bounded packets and Codex independently accepts them; human and Director approval gates remain authoritative. | Confirmed |
+| D025 | The project initiator confirmed in writing on 2026-09-10 that both OTS templates' executable focal length is 75mm (current, movement start and end, and the `focal_75mm` semantics token). Template version bumped to v2; `dialogue_medium_two_shot` keeps 35mm. Camera positions, targets and character blocking were NOT changed to match reference images. This resolves only the focal-length question: `aigc_project.rar` remains quarantined, none of its other contents are approved by this decision, and both OTS templates stay `engineering_ready` (not `approved`). | Confirmed by project initiator |
 
 ## Open implementation gates
 
@@ -40,4 +41,3 @@ These are intentionally unresolved and belong in the technical spike or content 
 3. Which 8-12 two-person-dialogue templates are professionally approved by the project initiator?
 4. What measurable threshold determines whether the validation proceeds to a larger MVP?
 5. Are movement-reference video exports useful for the selected external model, or are guide frames plus text sufficient?
-6. Is the 75mm OTS CSV embedded in `aigc_project.rar` a later authorized Director revision, or should the current 50mm handoff remain canonical?

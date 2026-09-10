@@ -1,0 +1,17 @@
+id: generic_video
+version: 1
+status: engineering_placeholder
+descriptionZh: ordering 重复 subjects 且缺失 continuity，必须被拒绝
+ordering:
+  - subjects
+  - composition
+  - optics
+  - motion
+  - subjects
+constraints:
+  preserveStructuredFacts: true
+  allowLlmPolish: true
+  llmMayChange:
+    - wording
+  llmMayNotChange:
+    - camera_geometry

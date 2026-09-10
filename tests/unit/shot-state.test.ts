@@ -67,7 +67,7 @@ describe("createShotStateFromTemplate", () => {
     }
   });
 
-  it("copies movement, camera, scene and aspect ratio completely, keeping the OTS templates at 50mm", async () => {
+  it("copies movement, camera, scene and aspect ratio completely, keeping the OTS templates at 75mm (D025)", async () => {
     const template = await loadOtsTemplate();
     const state = createShotStateFromTemplate(template);
     expect(state.schemaVersion).toBe(SHOT_STATE_SCHEMA_VERSION);
@@ -75,23 +75,26 @@ describe("createShotStateFromTemplate", () => {
     expect(state.scene).toEqual({ presetId: "dialogue_room" });
     expect(state.camera.position).toEqual(template.camera.position);
     expect(state.camera.target).toEqual(template.camera.target);
-    expect(state.camera.focalLengthMm).toBe(50);
+    expect(state.camera.focalLengthMm).toBe(75);
     expect(state.camera.shotSize).toBe("medium_close_up");
     expect(state.camera.safeRanges).toEqual({ focalLengthMm: [12, 200] });
     expect(state.movement).toEqual(template.movement);
-    expect(state.movement.start.focalLengthMm).toBe(50);
-    expect(state.movement.end.focalLengthMm).toBe(50);
+    expect(state.movement.start.focalLengthMm).toBe(75);
+    expect(state.movement.end.focalLengthMm).toBe(75);
     expect(state.semantics).toEqual(template.promptSemantics);
   });
 
-  it("never uses the archive's divergent 75mm OTS value", async () => {
+  it("applies the initiator-confirmed 75mm OTS focal (D025) to both OTS templates at v2", async () => {
     const templates = await loadRealTemplates();
     for (const id of ["dialogue_ots_a_to_b", "dialogue_ots_b_to_a"]) {
       const template = templates.find((candidate) => candidate.id === id);
       const state = createShotStateFromTemplate(template!);
-      expect(state.camera.focalLengthMm).toBe(50);
-      expect(state.movement.start.focalLengthMm).toBe(50);
-      expect(state.movement.end.focalLengthMm).toBe(50);
+      expect(template?.version).toBe(2);
+      expect(state.template.version).toBe(2);
+      expect(state.camera.focalLengthMm).toBe(75);
+      expect(state.movement.start.focalLengthMm).toBe(75);
+      expect(state.movement.end.focalLengthMm).toBe(75);
+      expect(state.semantics.optics).toContain("focal_75mm");
     }
   });
 

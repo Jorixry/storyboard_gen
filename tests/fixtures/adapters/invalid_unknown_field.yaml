@@ -1,0 +1,18 @@
+id: generic_video
+version: 1
+status: engineering_placeholder
+descriptionZh: 含未知顶层字段，必须被拒绝
+unexpectedTopLevel: true
+ordering:
+  - subjects
+  - composition
+  - optics
+  - motion
+  - continuity
+constraints:
+  preserveStructuredFacts: true
+  allowLlmPolish: true
+  llmMayChange:
+    - wording
+  llmMayNotChange:
+    - camera_geometry

@@ -8,7 +8,7 @@ These are **engineering planning placeholders**, not professionally approved dir
 |---|---|---|---|
 | `dialogue_establishing_wide` | 对话建立全景 | Establish both characters and room | Wide camera, both bodies visible, static or subtle push |
 | `dialogue_medium_two_shot` | 双人中景 | Keep both characters equally present | Medium two-shot, balanced framing |
-| `dialogue_ots_a_to_b` | A过肩拍B | Emphasize B while keeping A as spatial reference | Foreground A shoulder, B primary, 50mm placeholder |
+| `dialogue_ots_a_to_b` | A过肩拍B | Emphasize B while keeping A as spatial reference | Foreground A shoulder, B primary, 75mm (D025) |
 | `dialogue_ots_b_to_a` | B过肩拍A | Reverse coverage of the previous shot | Mirrored positions without crossing axis |
 | `dialogue_clean_single_a` | A单人反应 | Isolate A's response | A primary, B excluded or minimal |
 | `dialogue_clean_single_b` | B单人反应 | Isolate B's response | B primary, A excluded or minimal |

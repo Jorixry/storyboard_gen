@@ -78,7 +78,7 @@ function copySemantics(semantics: ShotTemplate["promptSemantics"]): PromptSemant
  * - template id/version/reviewStatus are preserved verbatim;
  * - characters are exactly character_a and character_b;
  * - movement start/end, camera, scene and aspect ratio are copied completely
- *   (current OTS templates keep their 50mm focal length);
+ *   (current OTS templates keep their 75mm focal length per D025);
  * - camera safe ranges are derived from the content Schema bounds;
  * - the returned object shares no mutable references with the template.
  */

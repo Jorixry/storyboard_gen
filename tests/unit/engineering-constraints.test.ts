@@ -106,9 +106,9 @@ describe("constraint constants match the content Schema and command semantics", 
   it("focal presets include the two focal lengths the current templates ship", async () => {
     const templates = await loadRealTemplates();
     const shipped = templates.map((template) => template.camera.focalLengthMm).sort();
-    expect(shipped).toEqual([35, 50, 50]);
+    expect(shipped).toEqual([35, 75, 75]); // OTS v2 templates execute at 75mm (D025)
     expect(Object.values(FOCAL_FEEL_PRESETS)).toContain(35);
-    expect(Object.values(FOCAL_FEEL_PRESETS)).toContain(50);
+    expect(Object.values(FOCAL_FEEL_PRESETS)).toContain(50); // still a preset value
   });
 
   it("step and blend fractions are the documented engineering values", () => {

@@ -25,8 +25,12 @@ interface StageSnapshot {
 }
 
 /** Independently derived FOV constants (2*atan(verticalGate/(2*f)) in degrees). */
+// Template-default FOVs (OTS v2 executes at 75mm per D025).
+const VFOV_75MM_169 = 15.376895539805746; // 2*atan(20.25/150), 16:9 gate
+// Focal-feel PRESET FOV (portrait preset = 50mm; engineering presets are
+// independent of template defaults).
 const VFOV_50MM_169 = 22.895192527371208;
-const VFOV_50MM_916 = 39.59775270904986;
+const VFOV_75MM_916 = 26.991466561591626; // 2*atan(36/150), 9:16 gate
 
 /** Canonical template camera values (from the committed template YAML). */
 const OTS_A_TO_B_CAMERA: [number, number, number] = [-1.25, 1.7, 2];
@@ -114,7 +118,11 @@ test("gallery shows the three clearly labeled development templates", async ({ p
     await expect(card.getByTestId("template-review-status")).toHaveText(
       "engineering_ready · not director approved",
     );
-    await expect(card.getByTestId("template-meta")).toContainText(`${expectedIds[index]} v1`);
+    // OTS templates are v2 since the D025 75mm change; the medium shot stays v1.
+    const expectedVersions = [1, 2, 2];
+    await expect(card.getByTestId("template-meta")).toContainText(
+      `${expectedIds[index]} v${expectedVersions[index]}`,
+    );
     await expect(card.getByTestId("template-narrative-purpose")).not.toBeEmpty();
   }
   // The production boundary stays visible: zero approved templates today.
@@ -156,12 +164,12 @@ test("selecting a different template updates ShotState metadata and the camera p
 
   // Re-selecting a DIFFERENT template must drive the same stage immediately.
   await selectTemplate(page, "dialogue_ots_a_to_b");
-  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v1");
+  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v2");
   snapshot = await waitForSnapshot(
     page,
     (s) => s.view === "camera" && positionEquals(s.activeCamera.position, OTS_A_TO_B_CAMERA),
   );
-  expect(snapshot.activeCamera.fovDeg).toBeCloseTo(VFOV_50MM_169, 6);
+  expect(snapshot.activeCamera.fovDeg).toBeCloseTo(VFOV_75MM_169, 6);
   expect(snapshot.mannequins).toEqual(["character_a", "character_b"]);
 });
 
@@ -236,10 +244,10 @@ test("aspect ratio switches between 16:9 and 9:16 with the correct film gates", 
   page,
 }) => {
   await page.goto("/");
-  await selectTemplate(page, "dialogue_ots_a_to_b"); // 50mm, 16:9
+  await selectTemplate(page, "dialogue_ots_a_to_b"); // 75mm (D025), 16:9
   await page.getByTestId("view-toggle-camera").click();
   const wide = await waitForSnapshot(page, (s) => s.view === "camera");
-  expect(wide.activeCamera.fovDeg).toBeCloseTo(VFOV_50MM_169, 6); // 20.25mm vertical gate
+  expect(wide.activeCamera.fovDeg).toBeCloseTo(VFOV_75MM_169, 6); // 20.25mm vertical gate
   expect(wide.drawingBuffer.width / wide.drawingBuffer.height).toBeCloseTo(16 / 9, 1);
   await expect(page.getByTestId("footer-camera")).toContainText("16:9");
 
@@ -249,10 +257,10 @@ test("aspect ratio switches between 16:9 and 9:16 with the correct film gates", 
   const tall = await waitForSnapshot(
     page,
     (s) =>
-      Math.abs(s.activeCamera.fovDeg - VFOV_50MM_916) < 1e-6 &&
+      Math.abs(s.activeCamera.fovDeg - VFOV_75MM_916) < 1e-6 &&
       Math.abs(s.drawingBuffer.width / s.drawingBuffer.height - 9 / 16) < 0.05,
   );
-  expect(tall.activeCamera.fovDeg).toBeCloseTo(VFOV_50MM_916, 6); // 36mm vertical gate
+  expect(tall.activeCamera.fovDeg).toBeCloseTo(VFOV_75MM_916, 6); // 36mm vertical gate
   expect(tall.drawingBuffer.width / tall.drawingBuffer.height).toBeCloseTo(9 / 16, 1);
   await expect(page.getByTestId("footer-camera")).toContainText("9:16");
 
@@ -260,7 +268,7 @@ test("aspect ratio switches between 16:9 and 9:16 with the correct film gates", 
   await waitForSnapshot(
     page,
     (s) =>
-      Math.abs(s.activeCamera.fovDeg - VFOV_50MM_169) < 1e-6 &&
+      Math.abs(s.activeCamera.fovDeg - VFOV_75MM_169) < 1e-6 &&
       Math.abs(s.drawingBuffer.width / s.drawingBuffer.height - 16 / 9) < 0.05,
   );
 });
@@ -362,16 +370,16 @@ test("reset restores the template values while keeping the session ShotState ID"
   await page.getByTestId("control-closer").click();
   await page.getByTestId("control-focal-compressed").click();
   await page.getByTestId("control-aspect-916").click();
-  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - VFOV_50MM_916) > 1e-6);
+  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - VFOV_75MM_916) > 1e-6);
   await expect(page.getByTestId("footer-camera")).toContainText("85mm");
 
   await page.getByTestId("control-reset").click();
-  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - VFOV_50MM_169) < 1e-6);
+  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - VFOV_75MM_169) < 1e-6);
   expect(positionEquals((await readSnapshot(page)).activeCamera.position, OTS_A_TO_B_CAMERA)).toBe(
     true,
   );
   await expect(page.getByTestId("footer-camera")).toContainText(
-    "camera [-1.25, 1.70, 2.00] → [0.80, 1.55, 0.00] · 50mm",
+    "camera [-1.25, 1.70, 2.00] → [0.80, 1.55, 0.00] · 75mm",
   );
   await expect(page.getByTestId("footer-camera")).toContainText("16:9");
   await expect(page.getByTestId("footer-shot-state")).toHaveText(idBefore ?? "");
@@ -393,7 +401,7 @@ test("a page refresh restores the same session and ShotState ID", async ({ page 
   await page.reload();
   await expect(page.getByTestId("studio-workspace")).toBeVisible();
   await expect(page.getByTestId("footer-shot-state")).toHaveText(idBefore ?? "");
-  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v1");
+  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v2");
   // Edited values survive the round trip, not just the template defaults.
   await expect(page.getByTestId("footer-camera")).toContainText("50mm");
   await expect(page.getByTestId("footer-camera")).toContainText("9:16");
@@ -527,7 +535,7 @@ test("director and camera views keep their Prompt 3 semantics inside the studio"
   const camera = await waitForSnapshot(page, (s) => s.view === "camera");
   expect(camera.activeCamera.name).toBe("shot-camera");
   expect(positionEquals(camera.activeCamera.position, OTS_A_TO_B_CAMERA)).toBe(true);
-  expect(camera.activeCamera.fovDeg).toBeCloseTo(VFOV_50MM_169, 6);
+  expect(camera.activeCamera.fovDeg).toBeCloseTo(VFOV_75MM_169, 6);
   expect(camera.frustumHelperVisible).toBe(false);
   expect(camera.shotCameraInScene).toBe(false);
 });

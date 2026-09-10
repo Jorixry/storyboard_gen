@@ -1,0 +1,18 @@
+generic-video-prompt: model-agnostic engineering reference; not tuned for and not claiming support of any specific video model
+source: shot-state=shot-prompt6-medium state-schema=v1 template=dialogue_medium_two_shot@v1 review-status=engineering_ready adapter=generic_video@1.0.0 adapter-config=v1
+note: compiled deterministically from the canonical ShotState; template review status is engineering_ready, so directing semantics (incl. shoulder-frame share, depth of field, axis and eyeline) are engineering-derived and NOT professionally verified
+protected-facts (must survive any later polish): character_identity, character_position, camera_geometry, focal_length, movement_type, continuity_rules
+
+scene: dialogue_room
+aspect-ratio: 16:9
+camera.current: position=[0, 1.6, 3.4] target=[0, 1.55, 0] focal=35mm shot-size=medium_two_shot
+characters: character_a position=[-0.8, 0, 0] facing=90deg; character_b position=[0.8, 0, 0] facing=-90deg
+movement: type=static duration=4s easing=linear
+movement.start: position=[0, 1.6, 3.4] target=[0, 1.55, 0] focal=35mm
+movement.end: position=[0, 1.6, 3.4] target=[0, 1.55, 0] focal=35mm
+
+subjects: character_a_and_character_b_equal_prominence
+composition: medium_two_shot; waist_up_framing; side_eye_level_view; heads_at_same_height; balanced_left_right
+optics: focal_35mm; eye_level
+motion: static_camera
+continuity: maintain_axis; preserve_eyeline; balanced_two_shot
