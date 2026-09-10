@@ -1,0 +1,253 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`normalizeShotState > snapshots the normalized specification for each real template > dialogue_medium_two_shot 1`] = `
+{
+  "aspectRatio": "16:9",
+  "continuityRuleIds": [
+    "maintain_axis",
+    "preserve_eyeline",
+    "balanced_two_shot",
+  ],
+  "focalLengthMm": 35,
+  "geometry": {
+    "camera": {
+      "focalLengthMm": 35,
+      "position": [
+        0,
+        1.6,
+        3.4,
+      ],
+      "target": [
+        0,
+        1.55,
+        0,
+      ],
+    },
+    "cameraToCharacterDistanceM": {
+      "character_a": 3.841874542459709,
+      "character_b": 3.841874542459709,
+    },
+    "characters": [
+      {
+        "id": "character_a",
+        "position": [
+          -0.8,
+          0,
+          0,
+        ],
+        "rotationYDeg": 90,
+      },
+      {
+        "id": "character_b",
+        "position": [
+          0.8,
+          0,
+          0,
+        ],
+        "rotationYDeg": -90,
+      },
+    ],
+  },
+  "movementDurationSeconds": 4,
+  "movementEasing": "linear",
+  "movementType": "static",
+  "primarySubject": "both",
+  "semantics": {
+    "composition": [
+      "medium_two_shot",
+      "waist_up_framing",
+      "side_eye_level_view",
+      "heads_at_same_height",
+      "balanced_left_right",
+    ],
+    "continuity": [
+      "maintain_axis",
+      "preserve_eyeline",
+      "balanced_two_shot",
+    ],
+    "motion": [
+      "static_camera",
+    ],
+    "optics": [
+      "focal_35mm",
+      "eye_level",
+    ],
+    "subjects": [
+      "character_a_and_character_b_equal_prominence",
+    ],
+  },
+  "shotSize": "medium_two_shot",
+  "templateId": "dialogue_medium_two_shot",
+  "templateVersion": 1,
+}
+`;
+
+exports[`normalizeShotState > snapshots the normalized specification for each real template > dialogue_ots_a_to_b 1`] = `
+{
+  "aspectRatio": "16:9",
+  "continuityRuleIds": [
+    "maintain_axis",
+    "preserve_eyeline",
+    "foreground_shoulder_frame",
+    "matched_reverse_pair",
+  ],
+  "focalLengthMm": 75,
+  "geometry": {
+    "camera": {
+      "focalLengthMm": 75,
+      "position": [
+        -1.25,
+        1.7,
+        2,
+      ],
+      "target": [
+        0.8,
+        1.55,
+        0,
+      ],
+    },
+    "cameraToCharacterDistanceM": {
+      "character_a": 2.663174797117155,
+      "character_b": 3.3305404966761776,
+    },
+    "characters": [
+      {
+        "id": "character_a",
+        "position": [
+          -0.8,
+          0,
+          0,
+        ],
+        "rotationYDeg": 90,
+      },
+      {
+        "id": "character_b",
+        "position": [
+          0.8,
+          0,
+          0,
+        ],
+        "rotationYDeg": -90,
+      },
+    ],
+  },
+  "movementDurationSeconds": 4,
+  "movementEasing": "ease_in_out",
+  "movementType": "dolly_in",
+  "primarySubject": "character_b",
+  "semantics": {
+    "composition": [
+      "over_the_shoulder",
+      "character_a_shoulder_left_foreground",
+      "character_b_chest_up_framing",
+      "eyes_upper_third",
+    ],
+    "continuity": [
+      "maintain_axis",
+      "preserve_eyeline",
+      "foreground_shoulder_frame",
+      "matched_reverse_pair",
+    ],
+    "motion": [
+      "subtle_dolly_in",
+    ],
+    "optics": [
+      "medium_close_up",
+      "focal_75mm",
+      "soft_foreground",
+    ],
+    "subjects": [
+      "character_b_primary",
+      "character_a_shoulder_soft_foreground",
+    ],
+  },
+  "shotSize": "medium_close_up",
+  "templateId": "dialogue_ots_a_to_b",
+  "templateVersion": 1,
+}
+`;
+
+exports[`normalizeShotState > snapshots the normalized specification for each real template > dialogue_ots_b_to_a 1`] = `
+{
+  "aspectRatio": "16:9",
+  "continuityRuleIds": [
+    "maintain_axis",
+    "preserve_eyeline",
+    "foreground_shoulder_frame",
+    "matched_reverse_pair",
+  ],
+  "focalLengthMm": 75,
+  "geometry": {
+    "camera": {
+      "focalLengthMm": 75,
+      "position": [
+        1.25,
+        1.7,
+        2,
+      ],
+      "target": [
+        -0.8,
+        1.55,
+        0,
+      ],
+    },
+    "cameraToCharacterDistanceM": {
+      "character_a": 3.3305404966761776,
+      "character_b": 2.663174797117155,
+    },
+    "characters": [
+      {
+        "id": "character_a",
+        "position": [
+          -0.8,
+          0,
+          0,
+        ],
+        "rotationYDeg": 90,
+      },
+      {
+        "id": "character_b",
+        "position": [
+          0.8,
+          0,
+          0,
+        ],
+        "rotationYDeg": -90,
+      },
+    ],
+  },
+  "movementDurationSeconds": 4,
+  "movementEasing": "ease_in_out",
+  "movementType": "dolly_in",
+  "primarySubject": "character_a",
+  "semantics": {
+    "composition": [
+      "over_the_shoulder",
+      "character_b_shoulder_right_foreground",
+      "character_a_chest_up_framing",
+      "eyes_upper_third",
+    ],
+    "continuity": [
+      "maintain_axis",
+      "preserve_eyeline",
+      "foreground_shoulder_frame",
+      "matched_reverse_pair",
+    ],
+    "motion": [
+      "subtle_dolly_in",
+    ],
+    "optics": [
+      "medium_close_up",
+      "focal_75mm",
+      "soft_foreground",
+    ],
+    "subjects": [
+      "character_a_primary",
+      "character_b_shoulder_soft_foreground",
+    ],
+  },
+  "shotSize": "medium_close_up",
+  "templateId": "dialogue_ots_b_to_a",
+  "templateVersion": 1,
+}
+`;

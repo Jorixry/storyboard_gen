@@ -25,8 +25,10 @@ interface StageSnapshot {
 }
 
 /** Independently derived FOV constants (2*atan(verticalGate/(2*f)) in degrees). */
+const VFOV_75MM_169 = 15.376895539805746;
+const VFOV_75MM_916 = 26.991466561591626;
+/** 50mm portrait PRESET FOV — a product alias value, not a template default. */
 const VFOV_50MM_169 = 22.895192527371208;
-const VFOV_50MM_916 = 39.59775270904986;
 
 /** Canonical template camera values (from the committed template YAML). */
 const OTS_A_TO_B_CAMERA: [number, number, number] = [-1.25, 1.7, 2];
@@ -161,7 +163,7 @@ test("selecting a different template updates ShotState metadata and the camera p
     page,
     (s) => s.view === "camera" && positionEquals(s.activeCamera.position, OTS_A_TO_B_CAMERA),
   );
-  expect(snapshot.activeCamera.fovDeg).toBeCloseTo(VFOV_50MM_169, 6);
+  expect(snapshot.activeCamera.fovDeg).toBeCloseTo(VFOV_75MM_169, 6);
   expect(snapshot.mannequins).toEqual(["character_a", "character_b"]);
 });
 
@@ -236,10 +238,10 @@ test("aspect ratio switches between 16:9 and 9:16 with the correct film gates", 
   page,
 }) => {
   await page.goto("/");
-  await selectTemplate(page, "dialogue_ots_a_to_b"); // 50mm, 16:9
+  await selectTemplate(page, "dialogue_ots_a_to_b"); // 75mm, 16:9
   await page.getByTestId("view-toggle-camera").click();
   const wide = await waitForSnapshot(page, (s) => s.view === "camera");
-  expect(wide.activeCamera.fovDeg).toBeCloseTo(VFOV_50MM_169, 6); // 20.25mm vertical gate
+  expect(wide.activeCamera.fovDeg).toBeCloseTo(VFOV_75MM_169, 6); // 20.25mm vertical gate
   expect(wide.drawingBuffer.width / wide.drawingBuffer.height).toBeCloseTo(16 / 9, 1);
   await expect(page.getByTestId("footer-camera")).toContainText("16:9");
 
@@ -249,10 +251,10 @@ test("aspect ratio switches between 16:9 and 9:16 with the correct film gates", 
   const tall = await waitForSnapshot(
     page,
     (s) =>
-      Math.abs(s.activeCamera.fovDeg - VFOV_50MM_916) < 1e-6 &&
+      Math.abs(s.activeCamera.fovDeg - VFOV_75MM_916) < 1e-6 &&
       Math.abs(s.drawingBuffer.width / s.drawingBuffer.height - 9 / 16) < 0.05,
   );
-  expect(tall.activeCamera.fovDeg).toBeCloseTo(VFOV_50MM_916, 6); // 36mm vertical gate
+  expect(tall.activeCamera.fovDeg).toBeCloseTo(VFOV_75MM_916, 6); // 36mm vertical gate
   expect(tall.drawingBuffer.width / tall.drawingBuffer.height).toBeCloseTo(9 / 16, 1);
   await expect(page.getByTestId("footer-camera")).toContainText("9:16");
 
@@ -260,7 +262,7 @@ test("aspect ratio switches between 16:9 and 9:16 with the correct film gates", 
   await waitForSnapshot(
     page,
     (s) =>
-      Math.abs(s.activeCamera.fovDeg - VFOV_50MM_169) < 1e-6 &&
+      Math.abs(s.activeCamera.fovDeg - VFOV_75MM_169) < 1e-6 &&
       Math.abs(s.drawingBuffer.width / s.drawingBuffer.height - 16 / 9) < 0.05,
   );
 });
@@ -362,16 +364,16 @@ test("reset restores the template values while keeping the session ShotState ID"
   await page.getByTestId("control-closer").click();
   await page.getByTestId("control-focal-compressed").click();
   await page.getByTestId("control-aspect-916").click();
-  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - VFOV_50MM_916) > 1e-6);
+  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - VFOV_75MM_916) > 1e-6);
   await expect(page.getByTestId("footer-camera")).toContainText("85mm");
 
   await page.getByTestId("control-reset").click();
-  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - VFOV_50MM_169) < 1e-6);
+  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - VFOV_75MM_169) < 1e-6);
   expect(positionEquals((await readSnapshot(page)).activeCamera.position, OTS_A_TO_B_CAMERA)).toBe(
     true,
   );
   await expect(page.getByTestId("footer-camera")).toContainText(
-    "camera [-1.25, 1.70, 2.00] → [0.80, 1.55, 0.00] · 50mm",
+    "camera [-1.25, 1.70, 2.00] → [0.80, 1.55, 0.00] · 75mm",
   );
   await expect(page.getByTestId("footer-camera")).toContainText("16:9");
   await expect(page.getByTestId("footer-shot-state")).toHaveText(idBefore ?? "");
@@ -527,7 +529,7 @@ test("director and camera views keep their Prompt 3 semantics inside the studio"
   const camera = await waitForSnapshot(page, (s) => s.view === "camera");
   expect(camera.activeCamera.name).toBe("shot-camera");
   expect(positionEquals(camera.activeCamera.position, OTS_A_TO_B_CAMERA)).toBe(true);
-  expect(camera.activeCamera.fovDeg).toBeCloseTo(VFOV_50MM_169, 6);
+  expect(camera.activeCamera.fovDeg).toBeCloseTo(VFOV_75MM_169, 6);
   expect(camera.frustumHelperVisible).toBe(false);
   expect(camera.shotCameraInScene).toBe(false);
 });

@@ -1,0 +1,52 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compileGenericPrompt > snapshots the generic prompt for each real template > dialogue_medium_two_shot 1`] = `
+"[generic_video v1]
+template: dialogue_medium_two_shot@v1
+aspect ratio: 16:9
+shot size: medium_two_shot
+primary subject: both
+focal length: 35.0mm
+movement: static, 4.0s, linear
+subjects: character_a_and_character_b_equal_prominence
+composition: medium_two_shot, waist_up_framing, side_eye_level_view, heads_at_same_height, balanced_left_right
+optics: focal_35mm, eye_level
+motion: static_camera
+continuity: maintain_axis, preserve_eyeline, balanced_two_shot
+camera: position [0.00, 1.60, 3.40], target [0.00, 1.55, 0.00], 35.0mm
+characters: character_a at [-0.80, 0.00, 0.00] facing 90deg; character_b at [0.80, 0.00, 0.00] facing -90deg"
+`;
+
+exports[`compileGenericPrompt > snapshots the generic prompt for each real template > dialogue_ots_a_to_b 1`] = `
+"[generic_video v1]
+template: dialogue_ots_a_to_b@v1
+aspect ratio: 16:9
+shot size: medium_close_up
+primary subject: character_b
+focal length: 75.0mm
+movement: dolly_in, 4.0s, ease_in_out
+subjects: character_b_primary, character_a_shoulder_soft_foreground
+composition: over_the_shoulder, character_a_shoulder_left_foreground, character_b_chest_up_framing, eyes_upper_third
+optics: medium_close_up, focal_75mm, soft_foreground
+motion: subtle_dolly_in
+continuity: maintain_axis, preserve_eyeline, foreground_shoulder_frame, matched_reverse_pair
+camera: position [-1.25, 1.70, 2.00], target [0.80, 1.55, 0.00], 75.0mm
+characters: character_a at [-0.80, 0.00, 0.00] facing 90deg; character_b at [0.80, 0.00, 0.00] facing -90deg"
+`;
+
+exports[`compileGenericPrompt > snapshots the generic prompt for each real template > dialogue_ots_b_to_a 1`] = `
+"[generic_video v1]
+template: dialogue_ots_b_to_a@v1
+aspect ratio: 16:9
+shot size: medium_close_up
+primary subject: character_a
+focal length: 75.0mm
+movement: dolly_in, 4.0s, ease_in_out
+subjects: character_a_primary, character_b_shoulder_soft_foreground
+composition: over_the_shoulder, character_b_shoulder_right_foreground, character_a_chest_up_framing, eyes_upper_third
+optics: medium_close_up, focal_75mm, soft_foreground
+motion: subtle_dolly_in
+continuity: maintain_axis, preserve_eyeline, foreground_shoulder_frame, matched_reverse_pair
+camera: position [1.25, 1.70, 2.00], target [-0.80, 1.55, 0.00], 75.0mm
+characters: character_a at [-0.80, 0.00, 0.00] facing 90deg; character_b at [0.80, 0.00, 0.00] facing -90deg"
+`;

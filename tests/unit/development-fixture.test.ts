@@ -29,16 +29,16 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
     expect(fixture.isDirectorApproved).toBe(false);
   });
 
-  it("keeps the OTS development fixture at 50mm", async () => {
+  it("keeps the OTS development fixture at the director-ruled 75mm", async () => {
     const templates = await loadRealTemplates();
     for (const templateId of ["dialogue_ots_a_to_b", "dialogue_ots_b_to_a"]) {
       const fixture = resolveDevelopmentFixture(templates, {
         templateId,
         includeStatuses: ENGINEERING_READY_ONLY,
       });
-      expect(fixture.shotState.camera.focalLengthMm).toBe(50);
-      expect(fixture.shotState.movement.start.focalLengthMm).toBe(50);
-      expect(fixture.shotState.movement.end.focalLengthMm).toBe(50);
+      expect(fixture.shotState.camera.focalLengthMm).toBe(75);
+      expect(fixture.shotState.movement.start.focalLengthMm).toBe(75);
+      expect(fixture.shotState.movement.end.focalLengthMm).toBe(75);
     }
   });
 

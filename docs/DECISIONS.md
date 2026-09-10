@@ -30,14 +30,16 @@ This file records decisions already settled in discussion. Codex should not reop
 | D022 | Current priority is technical/product development, not negotiating detailed intellectual-property terms. | Confirmed |
 | D023 | The MVP code-delivery target is two elapsed weeks (ten working days), with flexible calendar timing. External review/validation timing does not silently expand the code scope. | Confirmed |
 | D024 | Development is AI-first: zcode/OpenCode/GLM may implement bounded packets and Codex independently accepts them; human and Director approval gates remain authoritative. | Confirmed |
+| D025 | OTS executable focal length is 75mm, strictly matching the v2.1 director-return CSV (SHA-256 `1609074218D9E7F2C88FEF8DCC2B9FE1B8AB0FF7FB6B8FFB4DD6D46E792B39CB`, verified before migration). Both OTS templates moved from 50mm to 75mm on 2026-09-10; the "50mm" wording remains a product/UI-level "standard portrait" alias (the 50mm portrait preset) and is no longer mathematically bound to any template. | Confirmed 2026-09-10 |
+| D026 | The intended first target video model for the prompt adapter is 即梦 (Seedance) v2.0 Pro, named by the project initiator on 2026-09-10. No Seedance-specific adapter may ship until its exact model/version input behavior is verified against official documentation (see generic-video.yaml directorNotes). | Named; verification pending |
 
 ## Open implementation gates
 
 These are intentionally unresolved and belong in the technical spike or content handoff:
 
-1. Which image-generation provider best preserves the 3D composition while applying character/style references?
-2. Which exact external video model/version is used for the first prompt adapter?
+1. Which image-generation provider best preserves the 3D composition while applying character/style references? (Spike not yet authorized — initiator answer pending, 2026-09-10.)
+2. Which exact external video model/version is used for the first prompt adapter? (Named: 即梦 Seedance v2.0 Pro, D026; input-behavior verification still required.)
 3. Which 8-12 two-person-dialogue templates are professionally approved by the project initiator?
 4. What measurable threshold determines whether the validation proceeds to a larger MVP?
 5. Are movement-reference video exports useful for the selected external model, or are guide frames plus text sufficient?
-6. Is the 75mm OTS CSV embedded in `aigc_project.rar` a later authorized Director revision, or should the current 50mm handoff remain canonical?
+6. RESOLVED 2026-09-10 (D025): the 75mm OTS CSV is the authorized revision; both OTS templates now carry 75mm.

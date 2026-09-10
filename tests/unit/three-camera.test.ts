@@ -49,8 +49,8 @@ describe("applyShotCameraToPerspectiveCamera", () => {
     expect(camera.position.x).toBeCloseTo(-1.25, 12);
     expect(camera.position.y).toBeCloseTo(1.7, 12);
     expect(camera.position.z).toBeCloseTo(2, 12);
-    // Film-gate FOV for 50mm on a 16:9 36mm long-edge gate — not the focal value.
-    expect(camera.fov).toBeCloseTo(22.895192527371208, 9);
+    // Film-gate FOV for 75mm on a 16:9 36mm long-edge gate — not the focal value.
+    expect(camera.fov).toBeCloseTo(15.376895539805746, 9);
     expect(camera.fov).not.toBe(50);
     expect(camera.aspect).toBeCloseTo(16 / 9, 12);
     expect(camera.near).toBe(descriptor.near);
@@ -120,7 +120,7 @@ describe("applyShotCameraToPerspectiveCamera", () => {
 
     const bHead = projectPoint(camera, [0.8, 1.56, 0]);
     expect(bHead.x).toBeCloseTo(0, 6); // look-at target sits at frame center
-    expect(bHead.y).toBeCloseTo(0.017, 3);
+    expect(bHead.y).toBeCloseTo(0.0258, 3);
     expect(Math.abs(bHead.x)).toBeLessThan(1);
 
     const aHead = projectPoint(camera, [-0.8, 1.56, 0]);

@@ -1,23 +1,15 @@
 /**
  * Adapter boundary for external video-model prompt compilation.
  *
- * The full normalized-semantics pipeline and production provider adapters are
- * later prompts. This interface fixes the module boundary now so UI code never
- * depends on provider specifics.
+ * Prompt 6 moved the full model-independent specification into the domain
+ * layer (`src/domain/normalized-spec.ts`); adapters consume that type so the
+ * pipeline stays ShotState -> NormalizedShotSpec -> adapter, with no
+ * provider-specific shape leaking into the domain.
  */
 
-/**
- * Minimal, model-independent semantic subset used by the Prompt 1 mock.
- * Prompt 2/6 will replace this with the full normalized shot specification.
- */
-export interface NormalizedShotSpec {
-  templateId: string;
-  templateVersion: number;
-  aspectRatio: "9:16" | "16:9";
-  focalLengthMm: number;
-  movementType: "static" | "dolly_in" | "dolly_out" | "truck_left" | "truck_right";
-  primarySubject: "character_a" | "character_b" | "both";
-}
+import type { NormalizedShotSpec } from "@/domain/normalized-spec";
+
+export type { NormalizedShotSpec };
 
 export interface CompiledPrompt {
   /** Adapter identifier, e.g. "mock-video-prompt". */

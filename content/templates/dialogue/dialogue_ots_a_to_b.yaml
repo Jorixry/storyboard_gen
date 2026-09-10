@@ -30,7 +30,7 @@ characters:
 camera:
   position: [-1.25, 1.7, 2.0]
   target: [0.8, 1.55, 0.0]
-  focalLengthMm: 50
+  focalLengthMm: 75
   shotSize: medium_close_up
 
 movement:
@@ -38,11 +38,11 @@ movement:
   start:
     position: [-1.25, 1.7, 2.0]
     target: [0.8, 1.55, 0.0]
-    focalLengthMm: 50
+    focalLengthMm: 75
   end:
     position: [-1.05, 1.68, 1.4]
     target: [0.8, 1.55, 0.0]
-    focalLengthMm: 50
+    focalLengthMm: 75
   durationSeconds: 4
   easing: ease_in_out
 
@@ -63,7 +63,7 @@ promptSemantics:
     - eyes_upper_third
   optics:
     - medium_close_up
-    - focal_50mm
+    - focal_75mm
     - soft_foreground
   motion:
     - subtle_dolly_in
@@ -81,4 +81,4 @@ acceptance:
   - 前景A肩部位置全程保持一致
   - 与同场反打镜头 dialogue_ots_b_to_a 的视线方向在屏幕上相交
 
-directorNotes: 来源为 v2 导演交接包 shot-template-intake.csv。参考图溯源：/reference-images/dialogue_ots_a_to_b.png 已由项目发起人跟进的 dialogue_ots_pair_combined.jpg 成功拆分落盘（上半为 B→A，下半为 A→B，本模板取下半），是已交付的工程资产；该拆分配对图同时解决了v2交接条目原用 L4-4-srs-A.jpg 干净近景（前景无肩）的配对口径冲突。默认运镜暂定为约4秒缓慢推近（dolly_in，ease_in_out），起点保留更多A肩部、终点更强调B表情；v2交接同样允许固定机位，默认运镜待项目发起人确认。前景占比口径由v1的≤15%修正为经典OTS验收线1/4-1/3（≤15%为脏单人口径，知识图谱v1.1已明确区分）。屏幕方向以v2参考图为准（A肩在画面左侧），与v1包镜像相反。50mm依据知识图谱F3（对话与表演默认焦段）。与 dialogue_ots_b_to_a 构成正反打配对，机位镜像对称，两镜景别、焦距、曝光、白平衡、光线方向必须一致；曝光、白平衡、光线方向为固定场景与评审约束，不作为可编辑控制项。角色A（35岁男）与角色B（30岁女）的身份、年龄与定妆信息仅为提示词与参考图语境，3D场景使用通用假人，不支持身份一致性。本模板为 engineering_ready，改为 approved 前必须经项目发起人审核。
+directorNotes: 来源为 v2 导演交接包 shot-template-intake.csv。参考图溯源：/reference-images/dialogue_ots_a_to_b.png 已由项目发起人跟进的 dialogue_ots_pair_combined.jpg 成功拆分落盘（上半为 B→A，下半为 A→B，本模板取下半），是已交付的工程资产；该拆分配对图同时解决了v2交接条目原用 L4-4-srs-A.jpg 干净近景（前景无肩）的配对口径冲突。默认运镜暂定为约4秒缓慢推近（dolly_in，ease_in_out），起点保留更多A肩部、终点更强调B表情；v2交接同样允许固定机位，默认运镜待项目发起人确认。前景占比口径由v1的≤15%修正为经典OTS验收线1/4-1/3（≤15%为脏单人口径，知识图谱v1.1已明确区分）。屏幕方向以v2参考图为准（A肩在画面左侧），与v1包镜像相反。50mm依据知识图谱F3（对话与表演默认焦段）。与 dialogue_ots_b_to_a 构成正反打配对，机位镜像对称，两镜景别、焦距、曝光、白平衡、光线方向必须一致；曝光、白平衡、光线方向为固定场景与评审约束，不作为可编辑控制项。角色A（35岁男）与角色B（30岁女）的身份、年龄与定妆信息仅为提示词与参考图语境，3D场景使用通用假人，不支持身份一致性。本模板为 engineering_ready，改为 approved 前必须经项目发起人审核。焦距裁决（2026-09-10）：项目发起人确认 v2.1 交接 CSV（SHA-256 1609074218D9E7F2C88FEF8DCC2B9FE1B8AB0FF7FB6B8FFB4DD6D46E792B39CB）的 75mm 为执行焦距，本模板与 dialogue_ots_b_to_a 已同步由 50mm 改为 75mm（严格匹配 CSV 源数据）；交接语义中的"50mm观感"仅为产品/UI 层"标准人像"体验的代名词，不再绑定任何数学值。

@@ -183,10 +183,10 @@ describe("createShotStore — resetToTemplate", () => {
     const reset = store.getState().shotState!;
     expect(reset.id).toBe(idBeforeEdits);
     expect(reset.aspectRatio).toBe("16:9");
-    expect(reset.camera.focalLengthMm).toBe(50);
+    expect(reset.camera.focalLengthMm).toBe(75);
     expect(reset.camera.position).toEqual([-1.25, 1.7, 2]);
     expect(reset.camera.target).toEqual([0.8, 1.55, 0]);
-    expect(reset.movement.start.focalLengthMm).toBe(50);
+    expect(reset.movement.start.focalLengthMm).toBe(75);
   });
 
   it("refuses reset when the session's template version no longer exists", async () => {

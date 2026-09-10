@@ -103,12 +103,16 @@ describe("constraint constants match the content Schema and command semantics", 
     expect(FOCAL_LENGTH_MAX_MM).toBe(200);
   });
 
-  it("focal presets include the two focal lengths the current templates ship", async () => {
+  it("focal presets stay the provisional engineering set against the shipped template focals", async () => {
     const templates = await loadRealTemplates();
     const shipped = templates.map((template) => template.camera.focalLengthMm).sort();
-    expect(shipped).toEqual([35, 50, 50]);
+    // 35mm medium two-shot + the director-ruled 75mm OTS pair (v2.1 CSV).
+    expect(shipped).toEqual([35, 75, 75]);
+    // The natural preset matches a shipped value; the portrait preset stays
+    // 50mm as a product-level "standard portrait" alias and no longer equals
+    // any shipped template focal (docs/DECISIONS.md, 2026-09-10 ruling).
     expect(Object.values(FOCAL_FEEL_PRESETS)).toContain(35);
-    expect(Object.values(FOCAL_FEEL_PRESETS)).toContain(50);
+    expect(Object.values(FOCAL_FEEL_PRESETS)).not.toContain(75);
   });
 
   it("step and blend fractions are the documented engineering values", () => {

@@ -8,8 +8,34 @@ function sampleSpec(overrides: Partial<NormalizedShotSpec> = {}): NormalizedShot
     templateVersion: 1,
     aspectRatio: "9:16",
     focalLengthMm: 50,
+    shotSize: "medium_close_up",
     movementType: "dolly_in",
+    movementDurationSeconds: 4,
+    movementEasing: "ease_in_out",
     primarySubject: "character_b",
+    continuityRuleIds: ["maintain_axis"],
+    semantics: {
+      subjects: ["character_b_primary"],
+      composition: ["over_the_shoulder"],
+      optics: ["focal_50mm"],
+      motion: ["subtle_dolly_in"],
+      continuity: ["maintain_axis"],
+    },
+    geometry: {
+      camera: {
+        position: [-1.25, 1.7, 2],
+        target: [0.8, 1.55, 0],
+        focalLengthMm: 50,
+      },
+      characters: [
+        { id: "character_a", position: [-0.8, 0, 0], rotationYDeg: 90 },
+        { id: "character_b", position: [0.8, 0, 0], rotationYDeg: -90 },
+      ],
+      cameraToCharacterDistanceM: {
+        character_a: 2.663174797117155,
+        character_b: 3.3305404966761776,
+      },
+    },
     ...overrides,
   };
 }

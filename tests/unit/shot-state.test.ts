@@ -75,23 +75,23 @@ describe("createShotStateFromTemplate", () => {
     expect(state.scene).toEqual({ presetId: "dialogue_room" });
     expect(state.camera.position).toEqual(template.camera.position);
     expect(state.camera.target).toEqual(template.camera.target);
-    expect(state.camera.focalLengthMm).toBe(50);
+    expect(state.camera.focalLengthMm).toBe(75);
     expect(state.camera.shotSize).toBe("medium_close_up");
     expect(state.camera.safeRanges).toEqual({ focalLengthMm: [12, 200] });
     expect(state.movement).toEqual(template.movement);
-    expect(state.movement.start.focalLengthMm).toBe(50);
-    expect(state.movement.end.focalLengthMm).toBe(50);
+    expect(state.movement.start.focalLengthMm).toBe(75);
+    expect(state.movement.end.focalLengthMm).toBe(75);
     expect(state.semantics).toEqual(template.promptSemantics);
   });
 
-  it("never uses the archive's divergent 75mm OTS value", async () => {
+  it("uses the director-ruled 75mm OTS value from the v2.1 CSV on both OTS templates", async () => {
     const templates = await loadRealTemplates();
     for (const id of ["dialogue_ots_a_to_b", "dialogue_ots_b_to_a"]) {
       const template = templates.find((candidate) => candidate.id === id);
       const state = createShotStateFromTemplate(template!);
-      expect(state.camera.focalLengthMm).toBe(50);
-      expect(state.movement.start.focalLengthMm).toBe(50);
-      expect(state.movement.end.focalLengthMm).toBe(50);
+      expect(state.camera.focalLengthMm).toBe(75);
+      expect(state.movement.start.focalLengthMm).toBe(75);
+      expect(state.movement.end.focalLengthMm).toBe(75);
     }
   });
 

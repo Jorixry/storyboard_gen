@@ -27,14 +27,14 @@ describe("real repository content", () => {
     }
   });
 
-  it("keeps both OTS templates at the current 50mm handoff values", async () => {
+  it("keeps both OTS templates at the director-ruled 75mm v2.1 CSV values", async () => {
     const templates = await loadRealTemplates();
     for (const id of ["dialogue_ots_a_to_b", "dialogue_ots_b_to_a"]) {
       const template = templates.find((candidate) => candidate.id === id);
       expect(template).toBeDefined();
-      expect(template?.camera.focalLengthMm).toBe(50);
-      expect(template?.movement.start.focalLengthMm).toBe(50);
-      expect(template?.movement.end.focalLengthMm).toBe(50);
+      expect(template?.camera.focalLengthMm).toBe(75);
+      expect(template?.movement.start.focalLengthMm).toBe(75);
+      expect(template?.movement.end.focalLengthMm).toBe(75);
     }
   });
 });

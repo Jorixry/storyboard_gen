@@ -33,14 +33,14 @@ describe("projectShotStateToStage — shot camera comes from ShotState", () => {
     const stage = projectShotStateToStage(state);
     expect(stage.shotCamera.position).toEqual([-1.25, 1.7, 2]);
     expect(stage.shotCamera.target).toEqual([0.8, 1.55, 0]);
-    expect(stage.shotCamera.focalLengthMm).toBe(50);
+    expect(stage.shotCamera.focalLengthMm).toBe(75);
   });
 
-  it("derives the Three.js FOV from the documented film-gate math (50mm, 16:9)", async () => {
+  it("derives the Three.js FOV from the documented film-gate math (75mm, 16:9)", async () => {
     const state = await otsAToBState();
     const stage = projectShotStateToStage(state);
-    expect(stage.shotCamera.fovDeg).toBe(verticalFovDeg(50, "16:9"));
-    expect(stage.shotCamera.fovDeg).toBeCloseTo(22.895192527371208, 9);
+    expect(stage.shotCamera.fovDeg).toBe(verticalFovDeg(75, "16:9"));
+    expect(stage.shotCamera.fovDeg).toBeCloseTo(15.376895539805746, 9);
     expect(stage.shotCamera.fovDeg).not.toBe(50);
   });
 
@@ -102,7 +102,7 @@ describe("projectShotStateToStage — characters come from ShotState", () => {
 });
 
 describe("projectShotStateToStage — movement data preserved without tweening", () => {
-  it("carries movement start/end poses completely, including the 50mm OTS focal length", async () => {
+  it("carries movement start/end poses completely, including the 75mm OTS focal length", async () => {
     const state = await otsAToBState();
     const stage = projectShotStateToStage(state);
     expect(stage.movement.type).toBe("dolly_in");
@@ -110,10 +110,10 @@ describe("projectShotStateToStage — movement data preserved without tweening",
     expect(stage.movement.easing).toBe("ease_in_out");
     expect(stage.movement.start.position).toEqual([-1.25, 1.7, 2]);
     expect(stage.movement.start.target).toEqual([0.8, 1.55, 0]);
-    expect(stage.movement.start.focalLengthMm).toBe(50);
+    expect(stage.movement.start.focalLengthMm).toBe(75);
     expect(stage.movement.end.position).toEqual([-1.05, 1.68, 1.4]);
     expect(stage.movement.end.target).toEqual([0.8, 1.55, 0]);
-    expect(stage.movement.end.focalLengthMm).toBe(50);
+    expect(stage.movement.end.focalLengthMm).toBe(75);
   });
 
   it("differs between the movement start and end descriptors (dolly_in is not flattened)", async () => {

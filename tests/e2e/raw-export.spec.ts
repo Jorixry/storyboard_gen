@@ -44,13 +44,13 @@ interface StageSnapshot {
 
 /** Canonical dialogue_ots_a_to_b values (committed template YAML). */
 const OTS_A_TO_B = {
-  camera: { position: [-1.25, 1.7, 2] as const, target: [0.8, 1.55, 0] as const, focal: 50 },
+  camera: { position: [-1.25, 1.7, 2] as const, target: [0.8, 1.55, 0] as const, focal: 75 },
   start: { position: [-1.25, 1.7, 2] as const, target: [0.8, 1.55, 0] as const },
   end: { position: [-1.05, 1.68, 1.4] as const, target: [0.8, 1.55, 0] as const },
 };
-/** dialogue_ots_b_to_a (mirrored reverse pair, also 50mm dolly_in). */
+/** dialogue_ots_b_to_a (mirrored reverse pair, also 75mm dolly_in). */
 const OTS_B_TO_A = {
-  camera: { position: [1.25, 1.7, 2] as const, target: [-0.8, 1.55, 0] as const, focal: 50 },
+  camera: { position: [1.25, 1.7, 2] as const, target: [-0.8, 1.55, 0] as const, focal: 75 },
   start: { position: [1.25, 1.7, 2] as const, target: [-0.8, 1.55, 0] as const },
   end: { position: [1.05, 1.68, 1.4] as const, target: [-0.8, 1.55, 0] as const },
 };
@@ -288,7 +288,7 @@ test("movement preview scrubs eased start-to-end poses without touching the cano
 
   // The canonical current camera is untouched by the preview...
   await expect(page.getByTestId("preview-current-camera")).toContainText(
-    "camera [-1.25, 1.70, 2.00] · 50mm",
+    "camera [-1.25, 1.70, 2.00] · 75mm",
   );
   await expect(page.getByTestId("footer-camera")).toContainText("camera [-1.25, 1.70, 2.00]");
 
@@ -335,7 +335,7 @@ test("template selection through raw export downloads the deterministic five-fil
   // The adjusted current camera — NOT the template default, NOT a preview pose.
   expectVecCloseTo(result.state.camera.position, CLOSER_POSITION);
   expectVecCloseTo(result.state.camera.target, OTS_A_TO_B.camera.target);
-  expect(result.state.camera.focalLengthMm).toBe(50); // OTS stays 50mm
+  expect(result.state.camera.focalLengthMm).toBe(75); // OTS stays at the template's 75mm
   expect(result.state.aspectRatio).toBe("16:9");
   // Start/end poses come from the template movement, untouched by the edit.
   expectVecCloseTo(result.state.movement.start.position, OTS_A_TO_B.start.position);
@@ -397,7 +397,7 @@ test("P1-1 regression: a target-only edit exports the re-aimed composition, not 
   // still aims at +0.8 with identical position and focal length.
   expectVecCloseTo(result.state.camera.position, OTS_A_TO_B.camera.position);
   expectVecCloseTo(result.state.camera.target, [-0.8, 1.55, 0]);
-  expect(result.state.camera.focalLengthMm).toBe(50);
+  expect(result.state.camera.focalLengthMm).toBe(75);
   expectVecCloseTo(result.state.movement.start.position, OTS_A_TO_B.start.position);
   expectVecCloseTo(result.state.movement.start.target, OTS_A_TO_B.start.target);
   expectVecCloseTo(result.state.movement.end.target, OTS_A_TO_B.end.target);
@@ -447,7 +447,7 @@ async function verifyOtsExport(
 
   expect(result.state.template.id).toBe(testCase.id);
   expect(result.state.template.reviewStatus).toBe("engineering_ready");
-  expect(result.state.camera.focalLengthMm).toBe(50);
+  expect(result.state.camera.focalLengthMm).toBe(testCase.spec.camera.focal);
   expectVecCloseTo(result.state.camera.position, testCase.spec.camera.position);
   expectVecCloseTo(result.state.camera.target, testCase.spec.camera.target);
   expectVecCloseTo(result.state.movement.start.position, testCase.spec.start.position);
@@ -630,8 +630,8 @@ test("edits made during capture cannot pollute the frozen snapshot", async ({ pa
       `downloaded shot-state.json fails the canonical schema: ${stateParsed.error.message}`,
     );
   }
-  // The live state is 85mm now, but the package froze the 50mm template focal.
-  expect(stateParsed.data.camera.focalLengthMm).toBe(50);
+  // The live state is 85mm now, but the package froze the 75mm template focal.
+  expect(stateParsed.data.camera.focalLengthMm).toBe(75);
   expectVecCloseTo(stateParsed.data.camera.position, OTS_A_TO_B.camera.position);
   expectVecCloseTo(stateParsed.data.camera.target, OTS_A_TO_B.camera.target);
 
