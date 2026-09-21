@@ -29,14 +29,20 @@ export const WANXIANG_DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com";
 export const WANXIANG_DEFAULT_MODEL = "wan2.7-image";
 export const WANXIANG_DEFAULT_SIZE = "2K";
 
-/** output.choices[].message.content[] carrying an image (data URI or URL). */
-const dashscopeImageResponseSchema = z.strictObject({
-  output: z.strictObject({
+/**
+ * output.choices[].message.content[] carrying an image (data URI or URL).
+ * Tolerant objects: fields we depend on are strictly validated; DashScope's
+ * additional metadata fields (finish_reason etc.) are ignored — the same
+ * provider-response policy live-verified against Ark on 2026-09-22, applied
+ * proactively so the backup channel cannot hit the same class of failure.
+ */
+const dashscopeImageResponseSchema = z.object({
+  output: z.object({
     choices: z
       .array(
-        z.strictObject({
-          message: z.strictObject({
-            content: z.array(z.strictObject({ image: z.string().min(1) })).min(1),
+        z.object({
+          message: z.object({
+            content: z.array(z.object({ image: z.string().min(1) })).min(1),
           }),
         }),
       )

@@ -73,8 +73,26 @@ export function pngDimensions(bytes: Uint8Array): { width: number; height: numbe
   return { width, height };
 }
 
-const arkImageResponseSchema = z.strictObject({
-  data: z.array(z.strictObject({ b64_json: z.string().min(1), url: z.string().optional() })).min(1),
+/**
+ * LIVE-VERIFIED Ark response shape (2026-09-22, doubao-seedream-5-0-pro):
+ * the API returns extra metadata (top-level `model`/`created`; per-image
+ * `size`/`output_format`). Provider responses therefore use TOLERANT objects
+ * — every field we depend on is strictly validated, additional provider
+ * metadata is captured where useful and ignored otherwise. (Our OWN data
+ * contracts stay strictObject; tolerance is a provider-response policy.)
+ */
+const arkImageResponseSchema = z.object({
+  model: z.string().optional(),
+  created: z.number().optional(),
+  data: z
+    .array(
+      z.object({
+        b64_json: z.string().min(1),
+        size: z.string().optional(),
+        output_format: z.string().optional(),
+      }),
+    )
+    .min(1),
   usage: z.unknown().optional(),
 });
 
@@ -164,6 +182,9 @@ export class SeedreamImageGenerationAdapter implements ImageGenerationAdapter {
       metadata: {
         provider: "seedream",
         model: this.options.model,
+        responseModel: response.model ?? "",
+        outputFormat: first.output_format ?? "",
+        responseSize: first.size ?? "",
         size,
         sizeSource:
           this.options.size !== undefined

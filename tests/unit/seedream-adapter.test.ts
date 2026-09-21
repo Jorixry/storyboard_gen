@@ -86,10 +86,20 @@ function adapterWith(impl: typeof fetch, sleep: (ms: number) => Promise<void> = 
   });
 }
 
+/** Live-verified Ark success shape (2026-09-22): b64_json plus metadata. */
+function arkOkResponse(b64: string) {
+  return {
+    model: "doubao-seedream-5-0-pro-260628",
+    created: 1770000000,
+    data: [{ b64_json: b64, size: "1280*720", output_format: "png" }],
+    usage: { generated_images: 1 },
+  };
+}
+
 describe("SeedreamImageGenerationAdapter request contract", () => {
   it("POSTs the documented Ark shape: bearer auth, model, data-URL images in order", async () => {
     const { impl, calls } = fakeFetch([
-      () => okResponse({ data: [{ b64_json: bytesToBase64(GENERATED_PNG) }] }),
+      () => okResponse(arkOkResponse(bytesToBase64(GENERATED_PNG))),
     ]);
     const artifact = await adapterWith(impl).generate(baseInput());
 
@@ -124,6 +134,10 @@ describe("SeedreamImageGenerationAdapter request contract", () => {
     expect(artifact.metadata.model).toBe(SEEDREAM_DEFAULT_MODEL);
     expect(artifact.metadata.size).toBe("1280x720");
     expect(artifact.metadata.sizeSource).toBe("composition-png");
+    // Live-verified provider metadata fields flow into the artifact record.
+    expect(artifact.metadata.responseModel).toBe("doubao-seedream-5-0-pro-260628");
+    expect(artifact.metadata.outputFormat).toBe("png");
+    expect(artifact.metadata.responseSize).toBe("1280*720");
     expect(artifact.metadata.referenceCount).toBe("2");
     expect(artifact.metadata.hasStyleReference).toBe("true");
   });
@@ -249,19 +263,47 @@ describe("SeedreamImageGenerationAdapter failure and retry contract", () => {
     expect(attempts()).toBe(1);
   });
 
-  it("rejects a response that fails the Zod contract", async () => {
-    const { impl } = fakeFetch([() => okResponse({ data: [] })]);
-    await expect(adapterWith(impl).generate(baseInput())).rejects.toThrow(
+  it("rejects a response whose REQUIRED fields fail the contract", async () => {
+    // Empty data array: no image to decode — a hard contract failure.
+    const emptyData = fakeFetch([() => okResponse({ data: [] })]);
+    await expect(adapterWith(emptyData.impl).generate(baseInput())).rejects.toThrow(
       ProviderResponseContractError,
     );
+    // b64_json missing on the image entry: same hard failure.
+    const noB64 = fakeFetch([
+      () => okResponse({ data: [{ size: "1280*720", output_format: "png" }] }),
+    ]);
+    await expect(adapterWith(noB64.impl).generate(baseInput())).rejects.toThrow(
+      ProviderResponseContractError,
+    );
+  });
+
+  it("tolerates unknown provider metadata beyond the documented fields", async () => {
+    const { impl } = fakeFetch([
+      () =>
+        okResponse({
+          model: "doubao-seedream-5-0-pro-260628",
+          created: 1770000000,
+          data: [
+            {
+              b64_json: bytesToBase64(GENERATED_PNG),
+              size: "1280*720",
+              output_format: "png",
+              some_future_field: { nested: true },
+            },
+          ],
+          usage: { generated_images: 1 },
+          service_tier: "default",
+        }),
+    ]);
+    const artifact = await adapterWith(impl).generate(baseInput());
+    expect([...new Uint8Array(await artifact.image.arrayBuffer())]).toEqual([...GENERATED_PNG]);
   });
 
   it("is deterministic for identical input and identical provider response", async () => {
     const input = baseInput();
     const make = async () => {
-      const { impl } = fakeFetch([
-        () => okResponse({ data: [{ b64_json: bytesToBase64(GENERATED_PNG) }] }),
-      ]);
+      const { impl } = fakeFetch([() => okResponse(arkOkResponse(bytesToBase64(GENERATED_PNG)))]);
       return adapterWith(impl).generate(input);
     };
     const first = await make();
