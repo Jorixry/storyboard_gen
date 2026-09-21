@@ -19,7 +19,7 @@ import { z } from "zod";
 
 import type { GeneratedImageArtifact, ImageGenerationAdapter, ImageGenerationInput } from "./types";
 
-import { blobToDataUrl, base64ToBytes } from "./binary";
+import { blobToDataUrl, base64ToBytes, bytesToBase64 } from "./binary";
 import { postJsonForProvider } from "./provider-http";
 
 export const SEEDREAM_ADAPTER_ID = "seedream";
@@ -35,11 +35,43 @@ export const SEEDREAM_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/
  */
 export const SEEDREAM_DEFAULT_MODEL = "doubao-seedream-5-0-pro-260628";
 /**
- * "adaptive" (follow the input composition's aspect ratio) is the
- * composition-preserving default; the official enum list is pending the
- * first live-call verification (docs/PROVIDER_SPIKE.md, UNCONFIRMED item).
+ * Size policy (live-verified 2026-09-22 against doubao-seedream-5-0-pro):
+ * `size` must be an explicit `WIDTHxHEIGHT` or a supported preset — the
+ * cross-validated "adaptive" guess is NOT accepted. The adapter therefore
+ * derives `WIDTHxHEIGHT` from the composition PNG's own pixel dimensions
+ * (which also matches the Seedance 720p first-frame raster the pipeline
+ * exports); this constant is only the fallback when the composition is not a
+ * parseable PNG. Explicit `size` options / SEEDREAM_SIZE always win.
  */
-export const SEEDREAM_DEFAULT_SIZE = "adaptive";
+export const SEEDREAM_FALLBACK_SIZE = "1280x720";
+
+/**
+ * Reads the IHDR dimensions of a PNG byte stream (signature + chunk header +
+ * big-endian width/height). Returns null for anything that is not a PNG with a
+ * readable IHDR — the caller then falls back to the fixed default.
+ */
+export function pngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length < 24) {
+    return null;
+  }
+  for (let index = 0; index < PNG_SIGNATURE.length; index += 1) {
+    if (bytes[index] !== PNG_SIGNATURE[index]) {
+      return null;
+    }
+  }
+  const chunkType = String.fromCharCode(bytes[12]!, bytes[13]!, bytes[14]!, bytes[15]!);
+  if (chunkType !== "IHDR") {
+    return null;
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const width = view.getUint32(16);
+  const height = view.getUint32(20);
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+  return { width, height };
+}
 
 const arkImageResponseSchema = z.strictObject({
   data: z.array(z.strictObject({ b64_json: z.string().min(1), url: z.string().optional() })).min(1),
@@ -61,7 +93,7 @@ export interface SeedreamAdapterOptions {
 export class SeedreamImageGenerationAdapter implements ImageGenerationAdapter {
   readonly id = SEEDREAM_ADAPTER_ID;
   readonly version = SEEDREAM_ADAPTER_VERSION;
-  private readonly options: Required<Pick<SeedreamAdapterOptions, "baseUrl" | "model" | "size">> &
+  private readonly options: Required<Pick<SeedreamAdapterOptions, "baseUrl" | "model">> &
     SeedreamAdapterOptions;
 
   constructor(options: SeedreamAdapterOptions) {
@@ -72,13 +104,21 @@ export class SeedreamImageGenerationAdapter implements ImageGenerationAdapter {
       ...options,
       baseUrl: options.baseUrl ?? SEEDREAM_DEFAULT_BASE_URL,
       model: options.model ?? SEEDREAM_DEFAULT_MODEL,
-      size: options.size ?? SEEDREAM_DEFAULT_SIZE,
       watermark: options.watermark ?? false,
     };
   }
 
   async generate(input: ImageGenerationInput): Promise<GeneratedImageArtifact> {
-    const images: string[] = [await blobToDataUrl(input.compositionImage)];
+    const compositionBytes = new Uint8Array(await input.compositionImage.arrayBuffer());
+    const dimensions =
+      input.compositionImage.type === "image/png" ? pngDimensions(compositionBytes) : null;
+    const size =
+      this.options.size ??
+      (dimensions !== null ? `${dimensions.width}x${dimensions.height}` : SEEDREAM_FALLBACK_SIZE);
+
+    const images: string[] = [
+      `data:${input.compositionImage.type};base64,${bytesToBase64(compositionBytes)}`,
+    ];
     for (const reference of input.characterReferences ?? []) {
       images.push(await blobToDataUrl(reference));
     }
@@ -90,7 +130,7 @@ export class SeedreamImageGenerationAdapter implements ImageGenerationAdapter {
       model: this.options.model,
       prompt: input.prompt,
       image: images,
-      size: this.options.size,
+      size,
       response_format: "b64_json",
       watermark: this.options.watermark ?? false,
     };
@@ -124,7 +164,13 @@ export class SeedreamImageGenerationAdapter implements ImageGenerationAdapter {
       metadata: {
         provider: "seedream",
         model: this.options.model,
-        size: this.options.size,
+        size,
+        sizeSource:
+          this.options.size !== undefined
+            ? "explicit"
+            : dimensions !== null
+              ? "composition-png"
+              : "fallback",
         endpoint: this.options.baseUrl,
         promptLengthBytes: String(new TextEncoder().encode(input.prompt).length),
         compositionBytes: String(input.compositionImage.size),
