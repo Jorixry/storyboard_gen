@@ -54,7 +54,11 @@ export interface ProviderRequestOptions<S extends import("zod").ZodTypeAny> {
   schema: S;
   /** Total attempts including the first (default 3). Retries only 429/5xx/network. */
   maxAttempts?: number;
-  /** Per-attempt abort budget in milliseconds (default 30s). */
+  /**
+   * Per-attempt abort budget in milliseconds (default 100s). Live-verified
+   * 2026-09-22: pro-tier Seedream generation legitimately exceeds 30s; the
+   * outer /api/enhanced-frame budget (120s) sits above this on purpose.
+   */
   timeoutMs?: number;
   /** First backoff delay; grows exponentially per retry (default 500ms). */
   initialBackoffMs?: number;
@@ -87,7 +91,7 @@ export async function postJsonForProvider<S extends import("zod").ZodTypeAny>(
   options: ProviderRequestOptions<S>,
 ): Promise<import("zod").z.infer<S>> {
   const maxAttempts = options.maxAttempts ?? 3;
-  const timeoutMs = options.timeoutMs ?? 30_000;
+  const timeoutMs = options.timeoutMs ?? 100_000;
   const initialBackoffMs = options.initialBackoffMs ?? 500;
   const fetchImpl = options.fetchImpl ?? fetch;
   const sleep = options.sleep ?? defaultSleep;

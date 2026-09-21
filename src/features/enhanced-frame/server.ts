@@ -40,7 +40,12 @@ export const ENHANCED_FRAME_LIMITS = {
   maxImageBytes: 20 * 1024 * 1024,
   maxCharacterReferences: 9,
   acceptedImageMimeTypes: ["image/png", "image/jpeg", "image/webp"] as const,
-  defaultTimeoutMs: 30_000,
+  /**
+   * Outer generation budget. Live-verified 2026-09-22: pro-tier Seedream
+   * generation legitimately exceeds 30s, so the budget must sit comfortably
+   * above the per-attempt HTTP timeout (100s in provider-http.ts).
+   */
+  defaultTimeoutMs: 120_000,
 } as const;
 
 export type EnhancedFrameErrorCode =

@@ -38,7 +38,7 @@ type Phase = "idle" | "capturing" | "requesting" | "done" | "error";
 
 const PHASE_COPY: Record<Exclude<Phase, "idle" | "error">, string> = {
   capturing: "正在按冻结的 ShotState 快照渲染当前相机视图…",
-  requesting: "正在通过 /api/enhanced-frame 生成（当前为确定性 mock）…",
+  requesting: "正在生成增强首帧（真实 provider 可能需要一到两分钟，请勿离开页面）…",
   done: "",
 };
 
