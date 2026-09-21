@@ -370,25 +370,41 @@ export function compiledContentPath(projectRoot: string): string {
 const COMPILED_HEADER = [
   "// GENERATED FILE - DO NOT EDIT.",
   "// Regenerate with: npm run compile:content",
-  "// Source of truth: the YAML templates under content/templates/, validated",
-  "// against content/schema/shot-template.schema.json. Sorting and formatting",
-  "// are deterministic: identical inputs always produce identical bytes.",
+  "// Source of truth: the YAML templates under content/templates/ (validated",
+  "// against content/schema/shot-template.schema.json) and the adapter-content",
+  "// configs under content/adapters/ (validated against the Zod contract in",
+  "// src/domain/video-adapter-config.ts). Sorting and formatting are",
+  "// deterministic: identical inputs always produce identical bytes.",
   "",
   'import type { ShotTemplate } from "../domain/shot-template";',
+  'import type { VideoPromptAdapterConfig } from "../domain/video-adapter-config";',
   "",
   "",
 ].join("\n");
 
 /**
- * Renders validated templates as a deterministic TypeScript module.
- * Templates are sorted by id, so the output never depends on filesystem
- * enumeration order, timestamps or absolute paths.
+ * Renders validated templates and adapter-content configs as one deterministic
+ * TypeScript module. Both lists are sorted by id, so the output never depends
+ * on filesystem enumeration order, timestamps or absolute paths.
  */
-export function compileTemplatesToSource(templates: readonly ShotTemplate[]): string {
-  const sorted = [...templates].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return `${COMPILED_HEADER}export const COMPILED_SHOT_TEMPLATES: readonly ShotTemplate[] = ${JSON.stringify(
-    sorted,
-    null,
-    2,
-  )};\n`;
+export function compileContentToSource(
+  templates: readonly ShotTemplate[],
+  adapterConfigs: readonly VideoPromptAdapterConfig[],
+): string {
+  const sortedTemplates = [...templates].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const sortedAdapters = [...adapterConfigs].sort((a, b) =>
+    a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+  );
+  return (
+    `${COMPILED_HEADER}export const COMPILED_SHOT_TEMPLATES: readonly ShotTemplate[] = ${JSON.stringify(
+      sortedTemplates,
+      null,
+      2,
+    )};\n\n` +
+    `export const COMPILED_ADAPTER_CONFIGS: readonly VideoPromptAdapterConfig[] = ${JSON.stringify(
+      sortedAdapters,
+      null,
+      2,
+    )};\n`
+  );
 }

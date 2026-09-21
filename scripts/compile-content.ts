@@ -20,14 +20,15 @@ import path from "node:path";
 import { formatIssue } from "../src/domain/errors";
 import {
   compiledContentPath,
-  compileTemplatesToSource,
+  compileContentToSource,
   validateContent,
 } from "./lib/content-validation";
 
 async function main(): Promise<void> {
   const projectRoot = process.cwd();
   const contentDir = path.resolve(projectRoot, "content");
-  const { templates, issues, templateFileCount } = await validateContent(contentDir);
+  const { templates, adapterConfigs, issues, templateFileCount } =
+    await validateContent(contentDir);
 
   if (issues.length > 0) {
     console.error(
@@ -39,14 +40,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const source = compileTemplatesToSource(templates);
+  const source = compileContentToSource(templates, adapterConfigs);
   const target = compiledContentPath(projectRoot);
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, source, "utf8");
 
   const sha256 = createHash("sha256").update(source, "utf8").digest("hex");
   console.log(
-    `[compile-content] compiled ${templates.length} of ${templateFileCount} template file(s) to ${path.relative(
+    `[compile-content] compiled ${templates.length} of ${templateFileCount} template file(s) and ${adapterConfigs.length} adapter config(s) to ${path.relative(
       projectRoot,
       target,
     )}`,
@@ -54,6 +55,9 @@ async function main(): Promise<void> {
   console.log(`[compile-content] sha256=${sha256}`);
   for (const template of templates) {
     console.log(`  ${template.id} v${template.version} [${template.reviewStatus}]`);
+  }
+  for (const config of adapterConfigs) {
+    console.log(`  adapter ${config.id} v${config.version} [${config.status}]`);
   }
 }
 

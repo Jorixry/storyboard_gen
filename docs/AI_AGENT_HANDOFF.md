@@ -1,12 +1,14 @@
 # AI Agent Handoff
 
-Last updated: 2026-09-11
+Last updated: 2026-09-22
 
 ## Current handoff baseline
 
 - Prompts 1–6 are implemented and accepted; the developer confirmed Prompt 6 acceptance and remote push on 2026-09-10.
+- Prompt 7A (read-only image-provider spike) completed 2026-09-21: `docs/PROVIDER_SPIKE.md` compares Doubao-Seedream / Wan 2.7 / Gemini image APIs on official documentation; D027 records the developer's selection (Seedream primary + Wan 2.7 backup, single-active). Empirical composition testing is deferred under the no-credits decision.
+- Prompt 7B1 (mock-path finish + failure handling, Day 8 fallback branch) implemented 2026-09-22: server route `/api/enhanced-frame` with the pure handler core, D027 single-active adapter selection (mock default; production settings answer 501 until 7B2), explicit-action UI with retryable failures that never block raw export, `.env.example` conventions, and `compile:content` now emitting `COMPILED_ADAPTER_CONFIGS` so the client compiles the Prompt 6 generic prompt from the validated config. The new panel is collapsed in the controls aside, which the studio visual baselines do not capture (they scope the gallery and stage pane), so no baseline changed. Zero provider calls, zero credentials, zero cost. The next packet is Prompt 7B2 (production adapters), gated on the developer's credentials and explicit go-ahead.
 - D025 sets both OTS templates to v2 at 75mm for current/start/end and `focal_75mm` semantics. The medium two-shot stays v1 at 35mm. All remain `engineering_ready`; camera positions, targets, blocking and reference images are unchanged.
-- The next implementation packet is Prompt 7's read-only provider spike. Paid calls still require explicit authorization; production provider/model support remains unconfirmed.
+- Paid calls still require explicit authorization; production provider/model support remains unconfirmed until Prompt 7B2 + credentials.
 - The start state and Prompt 1 instructions below are retained as historical onboarding records, not instructions to restart the project.
 
 ### Branch reconciliation (2026-09-11)

@@ -723,3 +723,58 @@ h1 {
 .raw-export-capture-stage .director-stage {
   height: 100%;
 }
+
+/* --- Enhanced first frame (Prompt 7B1 / Phase 2 Day 8 fallback) ---------- */
+.enhanced-frame {
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.enhanced-frame summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.enhanced-frame-body {
+  margin-top: 8px;
+}
+
+.enhanced-frame .control-group button {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border: 1px solid #b8b8b8;
+  border-radius: 4px;
+  background: #f0f0f0;
+  cursor: pointer;
+}
+
+.enhanced-frame .control-group button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.enhanced-frame-result img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-top: 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+}
+
+/* Hidden capture stage: same off-screen trick as the raw export. */
+.enhanced-frame-capture-stage {
+  position: fixed;
+  left: -20000px;
+  top: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.enhanced-frame-capture-stage .director-stage {
+  height: 100%;
+}

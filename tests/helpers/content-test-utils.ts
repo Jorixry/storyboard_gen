@@ -11,6 +11,7 @@ import type { ValidateFunction } from "ajv/dist/2020";
 
 import type { ContentIssue } from "../../src/domain/errors";
 import type { ShotTemplate } from "../../src/domain/shot-template";
+import type { VideoPromptAdapterConfig } from "../../src/domain/video-adapter-config";
 import {
   loadRuleUniverse,
   loadShotTemplateSchema,
@@ -32,6 +33,20 @@ export async function loadRealTemplates(): Promise<ShotTemplate[]> {
     );
   }
   return templates;
+}
+
+/** Real validated templates AND adapter-content configs in one pass. */
+export async function loadRealContent(): Promise<{
+  templates: ShotTemplate[];
+  adapterConfigs: VideoPromptAdapterConfig[];
+}> {
+  const { templates, adapterConfigs, issues } = await validateContent(realContentDir);
+  if (issues.length > 0) {
+    throw new Error(
+      `real content failed validation:\n${issues.map((issue) => `${issue.file}${issue.path}: ${issue.message}`).join("\n")}`,
+    );
+  }
+  return { templates, adapterConfigs };
 }
 
 let cachedContext: { validator: ValidateFunction; ruleIds: Set<string> } | undefined;
