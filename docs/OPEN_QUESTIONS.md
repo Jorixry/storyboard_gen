@@ -26,6 +26,7 @@ This confirmation resolves ONLY the focal-length question. It does not approve a
 
 ## Provider spike
 
+- (2026-09-21) Prompt 7A read-only image-provider comparison complete: `docs/PROVIDER_SPIKE.md` compares Doubao-Seedream (Volcengine Ark), Wan 2.7 (Alibaba Cloud Model Studio) and Google Gemini image models on official documentation, with third-party claims labeled and uncertain items marked UNCONFIRMED. Empirical composition-preservation testing on the shared 3D fixture is deliberately deferred per the developer's no-credits decision (see the report's section 8 for the deferred-verification hook). Developer selection is the next gate; the selection becomes D027.
 - Which image provider best preserves the raw 3D composition?
 - Seedance v2.0 Pro is provisionally selected by the developer (D026, 2026-09-11). What is its exact official model identifier/version, API availability and correspondence to the platform used by pilot users?
 - What input types does that selected version accept at implementation time?
