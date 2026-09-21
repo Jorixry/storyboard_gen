@@ -26,7 +26,14 @@ export const SEEDREAM_ADAPTER_ID = "seedream";
 export const SEEDREAM_ADAPTER_VERSION = "1.0.0";
 
 export const SEEDREAM_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
-export const SEEDREAM_DEFAULT_MODEL = "doubao-seedream-4-0-250828";
+/**
+ * Default model: the developer's Ark console shows Doubao-Seedream-5.0-pro
+ * (version tag 260628), selected 2026-09-22 — the ID follows Ark's
+ * `doubao-seedream-<major>-<minor>[-pro]-<version>` convention. Override with
+ * the SEEDREAM_MODEL env setting (e.g. `doubao-seedream-4-5-251128`) if the
+ * exact string differs on the console's API page.
+ */
+export const SEEDREAM_DEFAULT_MODEL = "doubao-seedream-5-0-pro-260628";
 /**
  * "adaptive" (follow the input composition's aspect ratio) is the
  * composition-preserving default; the official enum list is pending the

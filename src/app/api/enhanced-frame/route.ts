@@ -27,6 +27,8 @@ export async function POST(request: Request): Promise<Response> {
     arkApiKey: process.env.ARK_API_KEY,
     dashscopeApiKey: process.env.DASHSCOPE_API_KEY,
     dashscopeBaseUrl: process.env.DASHSCOPE_BASE_URL,
+    seedreamModel: process.env.SEEDREAM_MODEL,
+    seedreamSize: process.env.SEEDREAM_SIZE,
   };
   const result = await handleEnhancedFrameRequest(formData, env, {
     registry: buildImageAdapterRegistry(env),

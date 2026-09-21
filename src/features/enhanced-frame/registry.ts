@@ -21,6 +21,9 @@ export interface ProductionAdapterEnv {
   arkApiKey?: string;
   dashscopeApiKey?: string;
   dashscopeBaseUrl?: string;
+  /** Optional Seedream overrides: exact model id (SEEDREAM_MODEL) and size. */
+  seedreamModel?: string;
+  seedreamSize?: string;
 }
 
 /** Server-side env var each production provider's credential lives in. */
@@ -43,7 +46,11 @@ export function providerCredentialPresent(
 export function buildImageAdapterRegistry(env: ProductionAdapterEnv): ImageAdapterRegistry {
   const registry: ImageAdapterRegistry = {};
   if (hasCredential(env.arkApiKey)) {
-    registry.seedream = new SeedreamImageGenerationAdapter({ apiKey: env.arkApiKey!.trim() });
+    registry.seedream = new SeedreamImageGenerationAdapter({
+      apiKey: env.arkApiKey!.trim(),
+      ...(hasCredential(env.seedreamModel) ? { model: env.seedreamModel!.trim() } : {}),
+      ...(hasCredential(env.seedreamSize) ? { size: env.seedreamSize!.trim() } : {}),
+    });
   }
   if (hasCredential(env.dashscopeApiKey)) {
     registry.wanxiang = new WanxiangImageGenerationAdapter({
