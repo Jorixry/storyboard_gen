@@ -56,20 +56,23 @@ export interface SelectedImageAdapter {
   provider: ImageProviderId;
 }
 
+/** Normalizes the raw setting: unset/blank -> "mock"; throws on unknown values. */
+export function normalizeImageProvider(providerSetting: string | undefined): ImageProviderId {
+  const trimmed = (providerSetting ?? "").trim();
+  if (trimmed === "" || trimmed === "mock") {
+    return "mock";
+  }
+  if ((IMAGE_PROVIDER_IDS as readonly string[]).includes(trimmed)) {
+    return trimmed as ImageProviderId;
+  }
+  throw new UnsupportedImageProviderError(trimmed);
+}
+
 export function selectImageGenerationAdapter(
   providerSetting: string | undefined,
   registry: ImageAdapterRegistry,
 ): SelectedImageAdapter {
-  const trimmed = (providerSetting ?? "").trim();
-  const provider: ImageProviderId =
-    trimmed === "" || trimmed === "mock"
-      ? "mock"
-      : (IMAGE_PROVIDER_IDS as readonly string[]).includes(trimmed)
-        ? (trimmed as ImageProviderId)
-        : (() => {
-            throw new UnsupportedImageProviderError(trimmed);
-          })();
-
+  const provider = normalizeImageProvider(providerSetting);
   if (provider === "mock") {
     return { adapter: new MockImageGenerationAdapter(), provider };
   }

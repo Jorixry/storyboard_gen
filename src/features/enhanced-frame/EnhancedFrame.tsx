@@ -47,6 +47,7 @@ interface EnhancedFrameResultView {
   adapterId: string;
   adapterVersion: string;
   provider: string;
+  metadata: Record<string, string>;
 }
 
 /** Hidden single-pose capture stage: the raw-export pattern, CURRENT pose only. */
@@ -164,6 +165,7 @@ export function EnhancedFrame() {
         adapterId: string;
         adapterVersion: string;
         provider: string;
+        metadata: Record<string, string>;
       };
       setPhase("done");
       setStatus("");
@@ -172,6 +174,7 @@ export function EnhancedFrame() {
         adapterId: payload.adapterId,
         adapterVersion: payload.adapterVersion,
         provider: payload.provider,
+        metadata: payload.metadata,
       });
     } catch (error) {
       setPhase("error");
@@ -196,9 +199,9 @@ export function EnhancedFrame() {
       <summary>增强首帧（可选，默认收起）</summary>
       <div className="enhanced-frame-body">
         <p className="control-hint">
-          显式动作：点击后才会生成。当前服务端走确定性 mock 适配器（IMAGE_PROVIDER 默认 mock，D027
-          单活）；真实图像 provider 待 Prompt 7B2 与凭据就绪。生成失败仅提示可重试，不影响 raw
-          export。
+          显式动作：点击后才会生成。服务端默认走确定性 mock 适配器（IMAGE_PROVIDER
+          未配置时）；管理员配置 IMAGE_PROVIDER=seedream / wanxiang 并提供对应凭据后走真实生成（D027
+          单活）。生成失败仅提示可重试，不影响 raw export。
         </p>
         <div className="control-group">
           <button
@@ -207,7 +210,7 @@ export function EnhancedFrame() {
             disabled={shotState === null || busy}
             onClick={start}
           >
-            {phase === "error" ? "重试生成增强首帧" : busy ? "生成中…" : "生成增强首帧（mock）"}
+            {phase === "error" ? "重试生成增强首帧" : busy ? "生成中…" : "生成增强首帧"}
           </button>
         </div>
         <p className="control-hint" data-testid="enhanced-frame-status" hidden={status === ""}>
@@ -215,17 +218,14 @@ export function EnhancedFrame() {
         </p>
         {result !== null && (
           <div className="enhanced-frame-result" data-testid="enhanced-frame-result">
-            {/* Runtime data-URL preview of a just-generated (mock) image;
-                next/image optimization does not apply to data URLs. */}
+            {/* Runtime data-URL preview of a just-generated image (mock or
+                provider, per the server's active adapter); next/image
+                optimization does not apply to data URLs. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={result.dataUrl}
-              alt="增强首帧（当前为 mock 输出）"
-              data-testid="enhanced-frame-image"
-            />
+            <img src={result.dataUrl} alt="增强首帧" data-testid="enhanced-frame-image" />
             <p className="control-hint" data-testid="enhanced-frame-provider">
               adapter {result.adapterId}@{result.adapterVersion} · provider=
-              {result.provider} · mock 输出，非真实生成图
+              {result.provider} · metadata {JSON.stringify(result.metadata)}
             </p>
           </div>
         )}

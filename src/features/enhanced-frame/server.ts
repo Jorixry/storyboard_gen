@@ -17,14 +17,17 @@ import type {
   GeneratedImageArtifact,
   ImageGenerationInput,
 } from "@/adapters/image-generation/types";
+import { bytesToBase64 } from "@/adapters/image-generation/binary";
 
 import {
+  normalizeImageProvider,
   selectImageGenerationAdapter,
   ProviderAdapterNotImplementedError,
   UnsupportedImageProviderError,
   type ImageAdapterRegistry,
   type ImageProviderId,
 } from "./adapter-selection";
+import { PROVIDER_CREDENTIAL_ENV_VARS, providerCredentialPresent } from "./registry";
 
 /**
  * Documented provider limits adopted as the shared request contract (strictest
@@ -49,6 +52,7 @@ export type EnhancedFrameErrorCode =
   | "unsupported_image_type"
   | "too_many_character_references"
   | "provider_adapter_not_implemented"
+  | "provider_credentials_missing"
   | "unsupported_image_provider"
   | "image_generation_failed"
   | "image_generation_timeout";
@@ -63,7 +67,7 @@ export interface EnhancedFrameSuccess {
 }
 
 /** Literal status set keeps the result union discriminable on `status`. */
-export type EnhancedFrameFailureStatus = 400 | 413 | 500 | 501 | 502 | 504;
+export type EnhancedFrameFailureStatus = 400 | 413 | 500 | 501 | 502 | 503 | 504;
 
 export interface EnhancedFrameFailure {
   status: EnhancedFrameFailureStatus;
@@ -76,10 +80,13 @@ export type EnhancedFrameResult =
 export interface EnhancedFrameEnv {
   /** Value of the server-side IMAGE_PROVIDER setting (D027); unset means mock. */
   imageProvider?: string;
+  /** Server-side production credentials (Prompt 7B2); presence gates 503 vs 501. */
+  arkApiKey?: string;
+  dashscopeApiKey?: string;
 }
 
 export interface EnhancedFrameOptions {
-  /** Production-adapter registry (empty in 7B1; filled by Prompt 7B2). */
+  /** Production-adapter registry (built by buildImageAdapterRegistry; empty = mock-only). */
   registry?: ImageAdapterRegistry;
   /** Generation timeout; the mock resolves instantly. */
   timeoutMs?: number;
@@ -106,16 +113,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
       },
     );
   });
-}
-
-/** Chunked base64 (8-bit-safe in every runtime; no Buffer dependency). */
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 8_192;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
-  }
-  return btoa(binary);
 }
 
 function isFileValue(value: FormDataEntryValue | null): value is File {
@@ -223,6 +220,30 @@ export async function handleEnhancedFrameRequest(
     );
   }
 
+  let provider: ImageProviderId;
+  try {
+    provider = normalizeImageProvider(env.imageProvider);
+  } catch (error) {
+    if (error instanceof UnsupportedImageProviderError) {
+      return {
+        status: 500,
+        body: { error: "unsupported_image_provider", message: error.message },
+      };
+    }
+    throw error;
+  }
+  if (provider !== "mock" && !providerCredentialPresent(provider, env)) {
+    return {
+      status: 503,
+      body: {
+        error: "provider_credentials_missing",
+        message:
+          `IMAGE_PROVIDER="${provider}" is selected but ${PROVIDER_CREDENTIAL_ENV_VARS[provider]} ` +
+          "is not set on the server; set it in .env.local and restart, or switch IMAGE_PROVIDER=mock",
+      },
+    };
+  }
+
   let selected;
   try {
     selected = selectImageGenerationAdapter(env.imageProvider, options.registry ?? {});
@@ -231,12 +252,6 @@ export async function handleEnhancedFrameRequest(
       return {
         status: 501,
         body: { error: "provider_adapter_not_implemented", message: error.message },
-      };
-    }
-    if (error instanceof UnsupportedImageProviderError) {
-      return {
-        status: 500,
-        body: { error: "unsupported_image_provider", message: error.message },
       };
     }
     throw error;

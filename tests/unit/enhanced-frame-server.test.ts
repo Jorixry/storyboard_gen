@@ -70,7 +70,9 @@ describe("selectImageGenerationAdapter (D027 single-active)", () => {
 
   it("rejects any other value as a server misconfiguration", () => {
     expect(() => selectImageGenerationAdapter("gemini", {})).toThrow(UnsupportedImageProviderError);
-    expect(() => selectImageGenerationAdapter("Seedream", {})).toThrow(UnsupportedImageProviderError);
+    expect(() => selectImageGenerationAdapter("Seedream", {})).toThrow(
+      UnsupportedImageProviderError,
+    );
     // Surrounding whitespace in an env value is tolerated, not a misconfiguration.
     expect(() => selectImageGenerationAdapter(" seedream ", {})).not.toThrow(
       UnsupportedImageProviderError,
@@ -170,19 +172,31 @@ describe("handleEnhancedFrameRequest input validation", () => {
 });
 
 describe("handleEnhancedFrameRequest provider selection and failures", () => {
-  it("IMAGE_PROVIDER=seedream answers 501 not-implemented (no silent mock fall-back)", async () => {
+  it("IMAGE_PROVIDER=seedream without ARK_API_KEY answers 503 credentials-missing", async () => {
     const failure = expectFailure(
       await handleEnhancedFrameRequest(baseFormData(), { imageProvider: "seedream" }),
-      501,
-      "provider_adapter_not_implemented",
+      503,
+      "provider_credentials_missing",
     );
-    expect(failure.message).toContain("Prompt 7B2");
-    expect(failure.message).toContain("seedream");
+    expect(failure.message).toContain("ARK_API_KEY");
+    expect(failure.message).toContain("IMAGE_PROVIDER");
   });
 
-  it("IMAGE_PROVIDER=wanxiang answers the same 501 contract", async () => {
-    expectFailure(
+  it("IMAGE_PROVIDER=wanxiang without DASHSCOPE_API_KEY answers the same 503 contract", async () => {
+    const failure = expectFailure(
       await handleEnhancedFrameRequest(baseFormData(), { imageProvider: "wanxiang" }),
+      503,
+      "provider_credentials_missing",
+    );
+    expect(failure.message).toContain("DASHSCOPE_API_KEY");
+  });
+
+  it("with the credential present but no registered adapter, answers 501 (defensive)", async () => {
+    expectFailure(
+      await handleEnhancedFrameRequest(baseFormData(), {
+        imageProvider: "seedream",
+        arkApiKey: "present-but-registry-empty",
+      }),
       501,
       "provider_adapter_not_implemented",
     );
@@ -207,7 +221,7 @@ describe("handleEnhancedFrameRequest provider selection and failures", () => {
     const failure = expectFailure(
       await handleEnhancedFrameRequest(
         baseFormData(),
-        { imageProvider: "seedream" },
+        { imageProvider: "seedream", arkApiKey: "k" },
         { registry: { seedream: failing } },
       ),
       502,
@@ -226,7 +240,7 @@ describe("handleEnhancedFrameRequest provider selection and failures", () => {
     expectFailure(
       await handleEnhancedFrameRequest(
         baseFormData(),
-        { imageProvider: "seedream" },
+        { imageProvider: "seedream", arkApiKey: "k" },
         { registry: { seedream: hanging }, timeoutMs: 20 },
       ),
       504,
@@ -248,7 +262,7 @@ describe("handleEnhancedFrameRequest provider selection and failures", () => {
     const body = expectSuccess(
       await handleEnhancedFrameRequest(
         baseFormData(),
-        { imageProvider: "seedream" },
+        { imageProvider: "seedream", arkApiKey: "k" },
         { registry: { seedream: produced } },
       ),
     );

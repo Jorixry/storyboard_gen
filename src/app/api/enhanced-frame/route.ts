@@ -1,14 +1,16 @@
 /**
- * POST /api/enhanced-frame (Prompt 7B1 / Phase 2 Day 8 fallback).
+ * POST /api/enhanced-frame (Prompt 7B1 transport + Prompt 7B2 registry).
  *
  * Thin transport wrapper: the entire contract (validation, single-active
- * adapter selection per D027, timeout, structured errors) lives in the pure
- * core src/features/enhanced-frame/server.ts, which is unit-tested directly.
- * The handler reads no secrets beyond IMAGE_PROVIDER, logs none of them and
- * performs no calls of its own — the selected adapter owns generation (the
- * deterministic mock by default; production adapters arrive in Prompt 7B2).
+ * adapter selection per D027, credentials-missing 503, timeout, structured
+ * errors) lives in the pure core src/features/enhanced-frame/server.ts, which
+ * is unit-tested directly. The handler reads the server-side environment
+ * (IMAGE_PROVIDER + production keys), builds the production registry and
+ * forwards everything; credentials never reach the client, logs or prompts.
+ * Default state (no env) is the deterministic mock — zero network, zero cost.
  */
 import { handleEnhancedFrameRequest } from "@/features/enhanced-frame/server";
+import { buildImageAdapterRegistry } from "@/features/enhanced-frame/registry";
 
 export async function POST(request: Request): Promise<Response> {
   let formData: FormData;
@@ -20,8 +22,14 @@ export async function POST(request: Request): Promise<Response> {
       { status: 400 },
     );
   }
-  const result = await handleEnhancedFrameRequest(formData, {
+  const env = {
     imageProvider: process.env.IMAGE_PROVIDER,
+    arkApiKey: process.env.ARK_API_KEY,
+    dashscopeApiKey: process.env.DASHSCOPE_API_KEY,
+    dashscopeBaseUrl: process.env.DASHSCOPE_BASE_URL,
+  };
+  const result = await handleEnhancedFrameRequest(formData, env, {
+    registry: buildImageAdapterRegistry(env),
   });
   return Response.json(result.body, { status: result.status });
 }

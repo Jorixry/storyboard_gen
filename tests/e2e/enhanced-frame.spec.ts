@@ -89,18 +89,20 @@ test("an enhanced-frame failure is retryable and never blocks raw export", async
   await expect(page.getByTestId("enhanced-frame-error")).toBeHidden();
 });
 
-test("a validation-broken request surfaces the structured server error", async ({ page }) => {
+test("a structured provider error surfaces in the UI", async ({ page }) => {
   await selectFirstTemplate(page);
   await openEnhancedFrame(page);
 
+  // The realistic production-path error after 7B2: a provider is selected on
+  // the server but its credential is missing (503 provider_credentials_missing).
   await page.route("**/api/enhanced-frame", (route) =>
     route.fulfill({
-      status: 501,
+      status: 503,
       contentType: "application/json",
       body: JSON.stringify({
-        error: "provider_adapter_not_implemented",
+        error: "provider_credentials_missing",
         message:
-          'IMAGE_PROVIDER="seedream" was requested, but its production adapter is not implemented yet (arrives in Prompt 7B2)',
+          'IMAGE_PROVIDER="seedream" is selected but ARK_API_KEY is not set on the server; set it in .env.local and restart, or switch IMAGE_PROVIDER=mock',
       }),
     }),
   );
@@ -109,6 +111,6 @@ test("a validation-broken request surfaces the structured server error", async (
   await expect(error).toBeVisible({ timeout: 15_000 });
   // The UI surfaces the server's human-readable message verbatim; the machine
   // error code is asserted against the same handler in the unit contract tests.
-  await expect(error).toContainText("not implemented yet");
-  await expect(error).toContainText("Prompt 7B2");
+  await expect(error).toContainText("ARK_API_KEY");
+  await expect(error).toContainText("IMAGE_PROVIDER");
 });
