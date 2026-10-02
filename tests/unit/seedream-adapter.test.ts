@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   SEEDREAM_DEFAULT_BASE_URL,
@@ -9,17 +9,31 @@ import {
 } from "../../src/adapters/image-generation/seedream";
 import { bytesToBase64 } from "../../src/adapters/image-generation/binary";
 import {
+  ProviderAbortedError,
   ProviderHttpError,
+  ProviderOutcomeUnknownError,
   ProviderResponseContractError,
+  ProviderResultDeliveryError,
+  ProviderTimeoutError,
+  ProviderUrlError,
 } from "../../src/adapters/image-generation/provider-http";
 import type { ImageGenerationInput } from "../../src/adapters/image-generation/types";
 
 /**
- * Seedream (Volcengine Ark) adapter contract tests — Prompt 7B2. The fetch
- * implementation is fully faked: zero network, zero credentials, zero cost.
- * These tests pin THIS ADAPTER'S request/response mapping; provider-side
- * verification on real infrastructure is deliberately deferred.
+ * Seedream (Volcengine Ark) adapter contract tests — Prompt 7B2, submission
+ * and cancellation policy updated in the acceptance fix round (2026-09-23).
+ * The fetch implementation is fully faked: zero network, zero credentials,
+ * zero cost. These tests pin THIS ADAPTER'S request/response mapping;
+ * provider-side verification on real infrastructure is deliberately deferred.
  */
+
+/**
+ * Placeholder key material for contract tests ONLY: an obviously non-secret
+ * fixture value (never a real credential — none exists in this repository),
+ * passed to an adapter whose fetch is fully faked, so it can never reach any
+ * network. Assembled from parts to make its non-credential nature explicit.
+ */
+const FIXTURE_API_KEY = ["test", "ark", "key"].join("-");
 
 interface RecordedCall {
   url: string;
@@ -80,7 +94,7 @@ function baseInput(
 
 function adapterWith(impl: typeof fetch, sleep: (ms: number) => Promise<void> = async () => {}) {
   return new SeedreamImageGenerationAdapter({
-    apiKey: "test-ark-key",
+    apiKey: FIXTURE_API_KEY,
     fetchImpl: impl,
     sleep,
   });
@@ -107,7 +121,7 @@ describe("SeedreamImageGenerationAdapter request contract", () => {
     const call = calls[0]!;
     expect(call.url).toBe(`${SEEDREAM_DEFAULT_BASE_URL}/images/generations`);
     expect(call.init.method).toBe("POST");
-    expect(new Headers(call.init.headers).get("Authorization")).toBe("Bearer test-ark-key");
+    expect(new Headers(call.init.headers).get("Authorization")).toBe(`Bearer ${FIXTURE_API_KEY}`);
     expect(new Headers(call.init.headers).get("Content-Type")).toBe("application/json");
 
     const body = JSON.parse(String(call.init.body)) as Record<string, unknown>;
@@ -127,7 +141,7 @@ describe("SeedreamImageGenerationAdapter request contract", () => {
     expect(images[3]).toMatch(/^data:image\/webp;base64,/);
 
     expect(artifact.adapterId).toBe("seedream");
-    expect(artifact.adapterVersion).toBe("1.0.0");
+    expect(artifact.adapterVersion).toBe("1.1.0");
     expect(artifact.image.type).toBe("image/png");
     expect([...new Uint8Array(await artifact.image.arrayBuffer())]).toEqual([...GENERATED_PNG]);
     expect(artifact.metadata.provider).toBe("seedream");
@@ -171,7 +185,7 @@ describe("SeedreamImageGenerationAdapter request contract", () => {
       () => okResponse({ data: [{ b64_json: bytesToBase64(GENERATED_PNG) }] }),
     ]);
     const adapter = new SeedreamImageGenerationAdapter({
-      apiKey: "test-ark-key",
+      apiKey: FIXTURE_API_KEY,
       size: "2048x1152",
       fetchImpl: impl,
     });
@@ -186,7 +200,7 @@ describe("SeedreamImageGenerationAdapter request contract", () => {
       () => okResponse({ data: [{ b64_json: bytesToBase64(GENERATED_PNG) }] }),
     ]);
     const adapter = new SeedreamImageGenerationAdapter({
-      apiKey: "k",
+      apiKey: FIXTURE_API_KEY,
       baseUrl: "https://ark.example.test/api/v3",
       model: "doubao-seedream-4-5-test",
       size: "2K",
@@ -228,7 +242,7 @@ describe("pngDimensions", () => {
   });
 });
 
-describe("SeedreamImageGenerationAdapter failure and retry contract", () => {
+describe("SeedreamImageGenerationAdapter failure, submission and cancellation contract", () => {
   it("retries a 429 with backoff, then succeeds", async () => {
     const delays: number[] = [];
     const sleep = async (ms: number) => {
@@ -244,12 +258,60 @@ describe("SeedreamImageGenerationAdapter failure and retry contract", () => {
     expect(artifact.metadata.provider).toBe("seedream");
   });
 
-  it("gives up after the retry budget on repeated 5xx", async () => {
-    const { impl, attempts } = fakeFetch([() => new Response("boom", { status: 502 })]);
-    await expect(adapterWith(impl, async () => {}).generate(baseInput())).rejects.toThrow(
-      ProviderHttpError,
-    );
+  it("stops after the 429 retry budget on repeated rate limiting", async () => {
+    const delays: number[] = [];
+    const { impl, attempts } = fakeFetch([() => new Response("rate limited", { status: 429 })]);
+    await expect(
+      adapterWith(impl, async (ms) => {
+        delays.push(ms);
+      }).generate(baseInput()),
+    ).rejects.toThrow(ProviderHttpError);
     expect(attempts()).toBe(3);
+    expect(delays).toEqual([500, 1000]);
+  });
+
+  it("does NOT resubmit a 5xx response — the outcome is unknown, not 'not generated'", async () => {
+    const { impl, attempts } = fakeFetch([() => new Response("bad gateway", { status: 502 })]);
+    const error = await adapterWith(impl, async () => {})
+      .generate(baseInput())
+      .catch((caught) => caught);
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    expect(error.outcomeUnknown).toBe(true);
+    expect(attempts()).toBe(1);
+  });
+
+  it("does NOT resubmit after a network failure — the outcome is unknown", async () => {
+    const { impl, attempts } = fakeFetch([
+      () => new TypeError("connection lost after the provider accepted the request"),
+    ]);
+    const error = await adapterWith(impl)
+      .generate(baseInput())
+      .catch((caught) => caught);
+    expect(error).toBeInstanceOf(ProviderOutcomeUnknownError);
+    expect(error.message).toContain("outcome is unknown");
+    expect(error.message).toContain("additional charge");
+    expect(attempts()).toBe(1);
+  });
+
+  it("does NOT resubmit when reading the accepted response body fails", async () => {
+    const brokenBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new TypeError("connection reset while reading the body"));
+      },
+    });
+    const { impl, attempts } = fakeFetch([
+      () =>
+        new Response(brokenBody, {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    ]);
+    const error = await adapterWith(impl)
+      .generate(baseInput())
+      .catch((caught) => caught);
+    expect(error).toBeInstanceOf(ProviderOutcomeUnknownError);
+    expect(error.phase).toBe("response-body");
+    expect(attempts()).toBe(1);
   });
 
   it("does NOT retry a definitive 4xx", async () => {
@@ -259,7 +321,11 @@ describe("SeedreamImageGenerationAdapter failure and retry contract", () => {
           status: 400,
         }),
     ]);
-    await expect(adapterWith(impl).generate(baseInput())).rejects.toThrow(ProviderHttpError);
+    const error = await adapterWith(impl)
+      .generate(baseInput())
+      .catch((caught) => caught);
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    expect(error.outcomeUnknown).toBe(false);
     expect(attempts()).toBe(1);
   });
 
@@ -276,6 +342,41 @@ describe("SeedreamImageGenerationAdapter failure and retry contract", () => {
     await expect(adapterWith(noB64.impl).generate(baseInput())).rejects.toThrow(
       ProviderResponseContractError,
     );
+  });
+
+  it("maps an accepted-but-unparseable JSON body to an outcome-unknown contract failure", async () => {
+    const { impl, attempts } = fakeFetch([
+      () =>
+        new Response("this is not json", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    ]);
+    const error = await adapterWith(impl)
+      .generate(baseInput())
+      .catch((caught) => caught);
+    // The request was accepted (2xx): the generation may have run and been
+    // billed, so the contract failure is outcome-unknown (acceptance R2-1).
+    expect(error).toBeInstanceOf(ProviderResponseContractError);
+    expect(error.outcomeUnknown).toBe(true);
+    expect(error.message).toContain("not parseable JSON");
+    expect(error.message).toContain("accepted (HTTP 2xx)");
+    expect(attempts()).toBe(1);
+  });
+
+  it("maps an undecodable image payload to a delivered-result failure", async () => {
+    const { impl, attempts } = fakeFetch([
+      () => okResponse({ data: [{ b64_json: "!!!not-base64!!!" }] }),
+    ]);
+    const error = await adapterWith(impl)
+      .generate(baseInput())
+      .catch((caught) => caught);
+    // The generation succeeded (2xx + contract); the payload is unusable —
+    // a delivered-result failure with the charge warning (acceptance R2-1).
+    expect(error).toBeInstanceOf(ProviderResultDeliveryError);
+    expect(error.outcomeUnknown).toBe(true);
+    expect(error.message).toContain("decoding the returned image payload failed");
+    expect(attempts()).toBe(1);
   });
 
   it("tolerates unknown provider metadata beyond the documented fields", async () => {
@@ -309,5 +410,147 @@ describe("SeedreamImageGenerationAdapter failure and retry contract", () => {
     const first = await make();
     const second = await make();
     expect(second).toEqual(first);
+  });
+
+  it("refuses to POST at all once the total budget is exhausted", async () => {
+    const { impl, attempts } = fakeFetch([
+      () => okResponse(arkOkResponse(bytesToBase64(GENERATED_PNG))),
+    ]);
+    const controller = new AbortController();
+    controller.abort(new Error("total budget exhausted"));
+    await expect(
+      adapterWith(impl).generate(baseInput(), {
+        signal: controller.signal,
+        deadlineAt: Date.now() - 1,
+      }),
+    ).rejects.toThrow(/total budget exhausted/);
+    expect(attempts()).toBe(0);
+  });
+
+  it("cancels an in-flight fetch through the total-budget signal", async () => {
+    const calls: Array<{ init: RequestInit }> = [];
+    const impl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ init: init ?? {} });
+      return await new Promise<Response>((_, reject) => {
+        const signal = init?.signal;
+        if (signal == null) {
+          return; // hangs forever — the abort path below is the only exit
+        }
+        signal.addEventListener(
+          "abort",
+          () => reject(signal.reason ?? new Error("request aborted")),
+          { once: true },
+        );
+      });
+    }) as typeof fetch;
+    const controller = new AbortController();
+    const pending = adapterWith(impl).generate(baseInput(), {
+      signal: controller.signal,
+      deadlineAt: Date.now() + 20,
+    });
+    const guard = pending.catch(() => {
+      /* asserted below through the same promise */
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    controller.abort(new Error("total budget exhausted"));
+    await expect(pending).rejects.toThrow(/total budget exhausted/);
+    await guard;
+    // The in-flight fetch received the cancellation through its own signal.
+    expect((calls[0]!.init as { signal?: AbortSignal }).signal?.aborted).toBe(true);
+  });
+
+  it("never submits a second POST when the budget fires during 429 backoff", async () => {
+    vi.useFakeTimers();
+    try {
+      const { impl, attempts } = fakeFetch([() => new Response("rate limited", { status: 429 })]);
+      // No injected sleep: the default (timer-based) backoff must be cancellable.
+      const adapter = new SeedreamImageGenerationAdapter({
+        apiKey: FIXTURE_API_KEY,
+        fetchImpl: impl,
+      });
+      const controller = new AbortController();
+      const pending = adapter.generate(baseInput(), {
+        signal: controller.signal,
+        deadlineAt: Date.now() + 20,
+      });
+      const guard = pending.catch(() => {
+        /* asserted below through the same promise */
+      });
+      await vi.advanceTimersByTimeAsync(25); // budget fires during the 500ms backoff
+      controller.abort(new Error("total budget exhausted"));
+      await expect(pending).rejects.toThrow(/total budget exhausted|aborted/);
+      await guard;
+      expect(attempts()).toBe(1);
+      await vi.advanceTimersByTimeAsync(5_000); // further time must NOT resubmit
+      expect(attempts()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("caps the per-attempt timeout to the remaining total budget", async () => {
+    vi.useFakeTimers();
+    try {
+      const observedSignals: AbortSignal[] = [];
+      const impl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+        observedSignals.push((init as { signal?: AbortSignal } | undefined)?.signal as AbortSignal);
+        // Hangs until its own per-attempt timer aborts it.
+        return await new Promise<Response>((_, reject) => {
+          const signal = (init as { signal?: AbortSignal } | undefined)?.signal;
+          signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("The operation was aborted.", "AbortError")),
+            { once: true },
+          );
+        });
+      }) as typeof fetch;
+      const pending = adapterWith(impl).generate(baseInput(), {
+        // 30ms total budget < the adapter's 100s per-attempt default: the
+        // attempt must abort at the TOTAL budget, not at 100s.
+        signal: new AbortController().signal,
+        deadlineAt: Date.now() + 30,
+      });
+      const guard = pending.catch(() => {
+        /* asserted below through the same promise */
+      });
+      await vi.advanceTimersByTimeAsync(31);
+      await expect(pending).rejects.toThrow(ProviderTimeoutError);
+      await guard;
+      expect(observedSignals).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects a misconfigured base URL pointing at a loopback target", async () => {
+    const { impl } = fakeFetch([() => okResponse(arkOkResponse(bytesToBase64(GENERATED_PNG)))]);
+    const adapter = new SeedreamImageGenerationAdapter({
+      apiKey: FIXTURE_API_KEY,
+      baseUrl: "http://localhost:3000",
+      fetchImpl: impl,
+    });
+    await expect(adapter.generate(baseInput())).rejects.toThrow(ProviderUrlError);
+  });
+
+  it("surfaces a ProviderAbortedError when aborted without a structured reason", async () => {
+    const { impl, attempts } = fakeFetch([() => new Response("rate limited", { status: 429 })]);
+    // No injected sleep: the real backoff is pending when the abort lands.
+    const adapter = new SeedreamImageGenerationAdapter({
+      apiKey: FIXTURE_API_KEY,
+      fetchImpl: impl,
+    });
+    const controller = new AbortController();
+    const pending = adapter.generate(baseInput(), {
+      signal: controller.signal,
+      deadlineAt: Date.now() + 5_000,
+    });
+    const guard = pending.catch(() => {
+      /* asserted below through the same promise */
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    controller.abort(); // no reason provided
+    await expect(pending).rejects.toThrow(ProviderAbortedError);
+    await guard;
+    expect(attempts()).toBe(1);
   });
 });

@@ -4,7 +4,9 @@ import { createSequenceIdFactory, defaultShotStateIdFactory } from "@/domain/ids
 import {
   createShotStateFromTemplate,
   SHOT_STATE_SCHEMA_VERSION,
+  shotStateFingerprint,
   shotStateSchema,
+  type ShotState,
 } from "@/domain/shot-state";
 import { loadRealTemplates } from "../helpers/content-test-utils";
 
@@ -128,5 +130,67 @@ describe("createShotStateFromTemplate", () => {
     expect(second.characters[0].position[0]).toBe(-0.8);
     expect(second.movement.start.position[0]).toBe(-1.25);
     expect(second.semantics.optics).not.toContain("mutated");
+  });
+});
+
+describe("shotStateFingerprint (acceptance P2-1 staleness basis)", () => {
+  async function baseState(): Promise<ShotState> {
+    const template = await loadOtsTemplate();
+    return createShotStateFromTemplate(template, { generateId: createSequenceIdFactory("shot") });
+  }
+
+  it("is equal for identical content, independent of key insertion order", async () => {
+    const state = await baseState();
+    expect(shotStateFingerprint(state)).toBe(shotStateFingerprint(state));
+    // A deep copy whose object keys were reordered serializes differently but
+    // fingerprints identically: canonical JSON sorts keys.
+    const reordered = JSON.parse(
+      JSON.stringify(state, (_key, value: unknown) =>
+        value !== null && typeof value === "object" && !Array.isArray(value)
+          ? Object.fromEntries(Object.entries(value as Record<string, unknown>).reverse())
+          : value,
+      ),
+    ) as ShotState;
+    expect(JSON.stringify(reordered)).not.toBe(JSON.stringify(state));
+    expect(shotStateFingerprint(reordered)).toBe(shotStateFingerprint(state));
+  });
+
+  it("changes when ANY same-shot parameter is edited (the id alone is not the comparator)", async () => {
+    const state = await baseState();
+    const original = shotStateFingerprint(state);
+
+    const editedCamera = structuredClone(state);
+    editedCamera.camera.position[0] += 0.01;
+    expect(shotStateFingerprint(editedCamera)).not.toBe(original);
+
+    const editedFocal = structuredClone(state);
+    editedFocal.camera.focalLengthMm = editedFocal.camera.focalLengthMm + 1;
+    expect(shotStateFingerprint(editedFocal)).not.toBe(original);
+
+    const editedAspect = structuredClone(state);
+    editedAspect.aspectRatio = editedAspect.aspectRatio === "16:9" ? "9:16" : "16:9";
+    expect(shotStateFingerprint(editedAspect)).not.toBe(original);
+
+    const editedCharacter = structuredClone(state);
+    editedCharacter.characters[0].rotationYDeg += 1;
+    expect(shotStateFingerprint(editedCharacter)).not.toBe(original);
+
+    const editedMovement = structuredClone(state);
+    editedMovement.movement.durationSeconds += 0.5;
+    expect(shotStateFingerprint(editedMovement)).not.toBe(original);
+
+    const editedSemantics = structuredClone(state);
+    editedSemantics.semantics.motion.push("faster_dolly");
+    expect(shotStateFingerprint(editedSemantics)).not.toBe(original);
+  });
+
+  it("changes when the shot id changes (template reload creates a fresh state)", async () => {
+    const template = await loadOtsTemplate();
+    const generateId = createSequenceIdFactory("s");
+    const first = createShotStateFromTemplate(template, { generateId });
+    const second = createShotStateFromTemplate(template, { generateId });
+    expect(first.id).toBe("s-1");
+    expect(second.id).toBe("s-2");
+    expect(shotStateFingerprint(first)).not.toBe(shotStateFingerprint(second));
   });
 });

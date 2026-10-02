@@ -58,6 +58,11 @@ test("enhanced frame is collapsed by default and generates only on the explicit 
     "mock-image-generation@1.0.0",
   );
   await expect(page.getByTestId("enhanced-frame-provider")).toContainText("provider=mock");
+  // Unchanged current state: the result is fresh (not stale) and records its
+  // source shot for provenance.
+  await expect(page.getByTestId("enhanced-frame-result")).toHaveAttribute("data-stale", "false");
+  await expect(page.getByTestId("enhanced-frame-result-stale")).toBeHidden();
+  await expect(page.getByTestId("enhanced-frame-provider")).toContainText("generated from shot");
   await expect(page.getByTestId("enhanced-frame-error")).toBeHidden();
 
   expect(externalRequests).toEqual([]);
@@ -113,4 +118,97 @@ test("a structured provider error surfaces in the UI", async ({ page }) => {
   // error code is asserted against the same handler in the unit contract tests.
   await expect(error).toContainText("ARK_API_KEY");
   await expect(error).toContainText("IMAGE_PROVIDER");
+});
+
+// ---------------------------------------------------------------------------
+// Result provenance and staleness (acceptance fix round 2026-09-23, P2-1).
+// Adapted from the review probe tests/e2e/review-prompt7.spec.ts: the browser
+// case accepts an EXPLICIT stale marker over hiding the image, per the fix
+// instructions.
+// ---------------------------------------------------------------------------
+
+test("switching templates marks the previous enhanced frame as stale with its source", async ({
+  page,
+}) => {
+  await selectFirstTemplate(page);
+  await openEnhancedFrame(page);
+  await page.getByTestId("generate-enhanced-frame").click();
+  const image = page.getByTestId("enhanced-frame-image");
+  await expect(image).toBeVisible({ timeout: 15_000 });
+  const previousSrc = await image.getAttribute("src");
+
+  await page.getByTestId("select-template-dialogue_ots_a_to_b").click();
+  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b");
+
+  // The old image may remain readable for inspection, but it must be marked
+  // stale with its source — never presented as the current shot's valid frame.
+  const result = page.getByTestId("enhanced-frame-result");
+  await expect(result).toHaveAttribute("data-stale", "true");
+  await expect(page.getByTestId("enhanced-frame-result-stale")).toBeVisible();
+  await expect(page.getByTestId("enhanced-frame-result-stale")).toContainText("已过期");
+  await expect(page.getByTestId("enhanced-frame-result-stale")).toContainText(
+    "dialogue_medium_two_shot",
+  );
+  await expect(image.getAttribute("src")).resolves.toBe(previousSrc);
+  await expect(image).toHaveAttribute("alt", "增强首帧（已过期）");
+});
+
+test("editing a parameter under the SAME shot id also invalidates the result", async ({ page }) => {
+  await selectFirstTemplate(page);
+  await openEnhancedFrame(page);
+  await page.getByTestId("generate-enhanced-frame").click();
+  await expect(page.getByTestId("enhanced-frame-image")).toBeVisible({ timeout: 15_000 });
+  const providerLineBefore = await page.getByTestId("enhanced-frame-provider").textContent();
+  const shotId = (providerLineBefore ?? "").match(/generated from shot (\S+)/)?.[1];
+  expect(shotId).toBeTruthy();
+
+  // A simple-control edit mutates camera state in place — the ShotState id is
+  // unchanged, so only a full-state fingerprint can detect the mismatch.
+  await page.getByTestId("control-closer").click();
+
+  await expect(page.getByTestId("enhanced-frame-result")).toHaveAttribute("data-stale", "true");
+  await expect(page.getByTestId("enhanced-frame-result-stale")).toBeVisible();
+  // Proof that the id stayed the same while the staleness flipped.
+  const providerLineAfter = await page.getByTestId("enhanced-frame-provider").textContent();
+  expect(providerLineAfter).toContain(`generated from shot ${shotId}`);
+});
+
+test("a late-arriving result for an edited state is stale from the moment it lands", async ({
+  page,
+}) => {
+  await selectFirstTemplate(page);
+  await openEnhancedFrame(page);
+
+  // Delay the API response so the shot state changes while the request is in
+  // flight; fulfill with a valid mock-shaped payload (tiny 1x1 PNG).
+  const tinyPng =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  await page.route("**/api/enhanced-frame", async (route) => {
+    await page.waitForTimeout(400);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        imageBase64: tinyPng,
+        imageMimeType: "image/png",
+        adapterId: "mock-image-generation",
+        adapterVersion: "1.0.0",
+        provider: "mock",
+        metadata: { delayed: "true" },
+      }),
+    });
+  });
+
+  await page.getByTestId("generate-enhanced-frame").click();
+  // The state changes while the generation request is pending.
+  await page.getByTestId("control-closer").click();
+
+  const result = page.getByTestId("enhanced-frame-result");
+  await expect(result).toBeVisible({ timeout: 15_000 });
+  await expect(result).toHaveAttribute("data-stale", "true");
+  await expect(page.getByTestId("enhanced-frame-result-stale")).toBeVisible();
+  await expect(page.getByTestId("enhanced-frame-image")).toHaveAttribute(
+    "alt",
+    "增强首帧（已过期）",
+  );
 });

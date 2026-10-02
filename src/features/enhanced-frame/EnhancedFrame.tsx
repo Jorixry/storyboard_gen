@@ -2,7 +2,8 @@
 
 /**
  * Optional enhanced first frame (Prompt 7B1 / Phase 2 Day 8 fallback: finish
- * the mock path and failure handling).
+ * the mock path and failure handling; snapshot/staleness added in the
+ * acceptance fix round 2026-09-23).
  *
  * Explicit-action contract: nothing is generated until the user clicks the
  * button inside this deliberately collapsed <details>. The click freezes the
@@ -11,6 +12,15 @@
  * Prompt 6 deterministic generic prompt from that same frozen state, and sends
  * both to the server-side /api/enhanced-frame adapter path (D027 single-active;
  * mock by default until Prompt 7B2 + credentials).
+ *
+ * Result provenance (P2-1): every generated image keeps the COMPLETE frozen
+ * ShotState it was generated from plus the adapter metadata — generation
+ * results are never written back into the canonical state. A result whose
+ * fingerprint no longer matches the current shot state is marked STALE with
+ * its source (template, version, shot id) instead of being presented as the
+ * current shot's valid first frame. Requests are sequenced: a late response
+ * from an older request can never overwrite a newer result, and a result that
+ * arrives after the state changed is stale from the moment it lands.
  *
  * Failure tolerance: any failure (capture, validation, network, provider) only
  * sets a local, retryable error message. The raw export shares no state with
@@ -25,7 +35,7 @@ import {
 } from "@/adapters/video-prompts/generic";
 import { COMPILED_ADAPTER_CONFIGS } from "@/content/compiled-content";
 import { exportImageDimensions } from "@/domain/artifacts";
-import { shotStateSchema, type ShotState } from "@/domain/shot-state";
+import { shotStateSchema, shotStateFingerprint, type ShotState } from "@/domain/shot-state";
 import { compileVideoPrompt } from "@/features/prompt-compiler/compile";
 import { DirectorStage, type StageSnapshot } from "@/features/rendering/DirectorStage";
 import { appShotStore } from "@/state/app-shot-store";
@@ -48,6 +58,8 @@ interface EnhancedFrameResultView {
   adapterVersion: string;
   provider: string;
   metadata: Record<string, string>;
+  /** Complete ShotState snapshot the image was generated from (P2-1). */
+  sourceState: ShotState;
 }
 
 /** Hidden single-pose capture stage: the raw-export pattern, CURRENT pose only. */
@@ -115,8 +127,16 @@ export function EnhancedFrame() {
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<EnhancedFrameResultView | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  /** Monotonic request sequence: late responses from older requests are dropped. */
+  const requestSeq = useRef(0);
 
   const busy = phase === "capturing" || phase === "requesting";
+  // Full-state staleness (P2-1): comparing only the ShotState id would miss
+  // same-shot edits (camera, aspect ratio, characters, movement keep the id).
+  const resultStale =
+    result !== null &&
+    (shotState === null ||
+      shotStateFingerprint(shotState) !== shotStateFingerprint(result.sourceState));
 
   const start = () => {
     if (shotState === null || busy) {
@@ -128,6 +148,7 @@ export function EnhancedFrame() {
       setErrorMessage(`ShotState 校验失败，生成被拒绝：${parsed.error.message}`);
       return;
     }
+    requestSeq.current += 1;
     setResult(null);
     setErrorMessage("");
     setFrozen(parsed.data);
@@ -136,6 +157,7 @@ export function EnhancedFrame() {
   };
 
   const requestEnhancedFrame = async (snapshotState: ShotState, composition: Blob) => {
+    const seq = requestSeq.current;
     setPhase("requesting");
     setStatus(PHASE_COPY.requesting);
     try {
@@ -167,6 +189,10 @@ export function EnhancedFrame() {
         provider: string;
         metadata: Record<string, string>;
       };
+      // A newer request superseded this one: drop the late response entirely.
+      if (seq !== requestSeq.current) {
+        return;
+      }
       setPhase("done");
       setStatus("");
       setResult({
@@ -175,15 +201,21 @@ export function EnhancedFrame() {
         adapterVersion: payload.adapterVersion,
         provider: payload.provider,
         metadata: payload.metadata,
+        sourceState: snapshotState,
       });
     } catch (error) {
+      if (seq !== requestSeq.current) {
+        return;
+      }
       setPhase("error");
       setStatus("");
       setErrorMessage(
         `增强首帧生成失败：${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
-      setFrozen(null);
+      if (seq === requestSeq.current) {
+        setFrozen(null);
+      }
     }
   };
 
@@ -217,15 +249,31 @@ export function EnhancedFrame() {
           {status}
         </p>
         {result !== null && (
-          <div className="enhanced-frame-result" data-testid="enhanced-frame-result">
+          <div
+            className="enhanced-frame-result"
+            data-testid="enhanced-frame-result"
+            data-stale={resultStale ? "true" : "false"}
+          >
+            {resultStale && (
+              <p className="command-warning" data-testid="enhanced-frame-result-stale">
+                此增强首帧已过期：它由较早的镜头状态生成（template {result.sourceState.template.id}{" "}
+                v{result.sourceState.template.version} · shot {result.sourceState.id}
+                ），当前镜头参数已变化，不能作为当前镜头的有效首帧。请重新生成。
+              </p>
+            )}
             {/* Runtime data-URL preview of a just-generated image (mock or
                 provider, per the server's active adapter); next/image
                 optimization does not apply to data URLs. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={result.dataUrl} alt="增强首帧" data-testid="enhanced-frame-image" />
+            <img
+              src={result.dataUrl}
+              alt={resultStale ? "增强首帧（已过期）" : "增强首帧"}
+              data-testid="enhanced-frame-image"
+            />
             <p className="control-hint" data-testid="enhanced-frame-provider">
               adapter {result.adapterId}@{result.adapterVersion} · provider=
-              {result.provider} · metadata {JSON.stringify(result.metadata)}
+              {result.provider} · generated from shot {result.sourceState.id} · metadata{" "}
+              {JSON.stringify(result.metadata)}
             </p>
           </div>
         )}

@@ -3,27 +3,40 @@
  * the D027 PRIMARY image provider.
  *
  * Transport: plain REST over fetch (see provider-http.ts for the SDK-exclusion
- * rationale). Endpoint and parameters follow the Ark image-generation API
- * (docs.volcengine.com/docs/82379/1541523); the request shape below is
- * cross-validated against multiple secondary sources because the official
- * page renders client-side (marked in docs/PROVIDER_SPIKE.md). Every provider
- * specific — base URL, model id, size — is constructor-overridable, so a
- * first-live-call correction touches exactly one default, and the contract
- * tests pin the adapter's own request/response mapping, not the provider.
+ * rationale and the submission/cancellation policy). Endpoint and parameters
+ * follow the Ark image-generation API (docs.volcengine.com/docs/82379/1541523);
+ * the request shape below is cross-validated against multiple secondary sources
+ * because the official page renders client-side (marked in
+ * docs/PROVIDER_SPIKE.md). Every provider specific — base URL, model id, size —
+ * is constructor-overridable, so a first-live-call correction touches exactly
+ * one default, and the contract tests pin the adapter's own request/response
+ * mapping, not the provider.
  *
  * Mapping (see docs/ARCHITECTURE.md "Enhanced first-frame service"):
  * compositionImage -> image[0]; characterReferences follow; styleReference
- * last. Ark bills successful outputs only; failures never bill.
+ * last. Ark documents no total input-image limit (UNCONFIRMED in
+ * docs/PROVIDER_SPIKE.md), so none is invented here; Ark bills successful
+ * outputs only — which does NOT make an outcome-unknown attempt safe to
+ * resubmit (see provider-http.ts).
+ *
+ * Cancellation (acceptance fix round 2026-09-23): the total-budget signal and
+ * deadline are forwarded to the shared HTTP core, so the generation POST, its
+ * response read and any 429 backoff all stop when the budget expires.
  */
 import { z } from "zod";
 
-import type { GeneratedImageArtifact, ImageGenerationAdapter, ImageGenerationInput } from "./types";
+import type {
+  GeneratedImageArtifact,
+  ImageGenerationAdapter,
+  ImageGenerationContext,
+  ImageGenerationInput,
+} from "./types";
 
 import { blobToDataUrl, base64ToBytes, bytesToBase64 } from "./binary";
-import { postJsonForProvider } from "./provider-http";
+import { ProviderResultDeliveryError, postJsonForProvider } from "./provider-http";
 
 export const SEEDREAM_ADAPTER_ID = "seedream";
-export const SEEDREAM_ADAPTER_VERSION = "1.0.0";
+export const SEEDREAM_ADAPTER_VERSION = "1.1.0";
 
 export const SEEDREAM_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
 /**
@@ -126,7 +139,10 @@ export class SeedreamImageGenerationAdapter implements ImageGenerationAdapter {
     };
   }
 
-  async generate(input: ImageGenerationInput): Promise<GeneratedImageArtifact> {
+  async generate(
+    input: ImageGenerationInput,
+    context?: ImageGenerationContext,
+  ): Promise<GeneratedImageArtifact> {
     const compositionBytes = new Uint8Array(await input.compositionImage.arrayBuffer());
     const dimensions =
       input.compositionImage.type === "image/png" ? pngDimensions(compositionBytes) : null;
@@ -168,13 +184,27 @@ export class SeedreamImageGenerationAdapter implements ImageGenerationAdapter {
         schema: arkImageResponseSchema,
         timeoutMs: this.options.timeoutMs,
         maxAttempts: this.options.maxAttempts,
+        signal: context?.signal,
+        deadlineAt: context?.deadlineAt,
         fetchImpl: this.options.fetchImpl,
         sleep: this.options.sleep,
       },
     );
 
     const first = response.data[0]!;
-    const bytes = base64ToBytes(first.b64_json);
+    let bytes: Uint8Array;
+    try {
+      bytes = base64ToBytes(first.b64_json);
+    } catch (error) {
+      // The generation succeeded (2xx + contract) but the payload is not
+      // decodable: a delivered-result failure, not a definitive miss
+      // (acceptance R2-1) — the provider may already have billed it.
+      throw new ProviderResultDeliveryError(
+        `decoding the returned image payload failed (${
+          error instanceof Error ? error.message : String(error)
+        })`,
+      );
+    }
     return {
       adapterId: this.id,
       adapterVersion: this.version,

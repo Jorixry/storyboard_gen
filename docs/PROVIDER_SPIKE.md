@@ -5,6 +5,8 @@
 > 候选名单（开发者 2026-09-21 选定）：火山引擎 Doubao-Seedream、阿里云通义万相、Google Gemini 图像
 > 用途定位：MVP 的"增强首帧"（enhanced first frame）生成适配器——输入 3D 舞台渲出的 raw 构图 + 可选角色/风格参考图 + 结构化 prompt，输出增强首帧。
 > ⚠️ 本报告为**纯文档级**对比。按开发者决策（2026-09-21），实测构图保持对比与真实 API 调用全部推迟；"文档能力 ≠ 实测效果"的风险见第八节。
+>
+> **修订（2026-09-23，验收修复轮）**：第三节原来把万相输入图路径写成 `input.messages[].image`，与官方契约不符。经重新核对官方 API 参考（HTTP 同步调用、图像编辑请求体章节），文本与图片是 `input.messages[0].content` 数组中的独立对象（每张图一个 `{image: string}`，外加一个 `{text: string}`）；"最多 9 张"是**全部输入图合计**（构图 + 参考图 + 风格图）的上限，不是参考图独享额度。第三节、第五节、第六节已按官方文档更正；适配器实现同步修正（wanxiang@1.1.0）。
 
 ---
 
@@ -14,7 +16,7 @@
 |---|---|---|---|
 | 当前推荐模型 | doubao-seedream-4-0-250828（4.5/5.0 已上线） | wan2.7-image / wan2.7-image-pro | gemini-3.1-flash-image（Nano Banana 2）等 |
 | 图生图/编辑 | ✅ 生成+编辑统一架构（官方） | ✅ 四种模式含 bbox 局部编辑（官方） | ✅ 参考图编辑+多轮编辑（官方） |
-| 参考图上限 | 官方页未标数；第三方口径 2–14 张（4.0）（交叉验证） | 9 张（官方） | 合计 14 张；Pro 档 6 对象+5 角色+3 风格（官方） |
+| 参考图上限 | 官方页未标数；第三方口径 2–14 张（4.0）（交叉验证） | 输入图合计 0–9 张（官方，2026-09-23 更正） | 合计 14 张；Pro 档 6 对象+5 角色+3 风格（官方） |
 | API 形态 | 同步，OpenAI Images 兼容风格 | 同步 + 异步双模（官方） | 同步 |
 | 国内直连 | ✅ cn-beijing，无需 VPN | ✅ 北京 workspace 域名 | ❌ 大陆不可直连（需代理） |
 | 单价（约） | 4.0 ¥0.2/张；4.5 ¥0.25/张 | ¥0.2/张（pro ¥0.5/张） | $0.034–0.24/图（按分辨率） |
@@ -90,7 +92,7 @@
 3. **交互式编辑**：`bbox_list` 框选每张图的区域（每图最多 2 框，绝对像素，左上原点），未选图传 `[]`。
 4. **组图**：`parameters.enable_sequential: true`，`n` 1–12，主体一致的多张连贯图——对分镜多镜头一致性有直接价值。
 
-- **参考图**：`input.messages[].image`，公网 URL 或 `data:{MIME};base64,{...}`；**最多 9 张**，顺序有义（数组位次决定角色）。
+- **输入图**：`input.messages[0].content` 数组，每张图一个独立 `{image: string}` 对象（公网 URL 或 `data:{MIME};base64,{...}`），外加一个 `{text: string}` 对象；**全部输入图合计 0–9 张**（2026-09-23 更正：含构图图与风格图在内的总量上限，非参考图独享），顺序有义（content 数组位次决定图像角色，prompt 以"图N"引用）。
 - **输入约束**：JPEG/JPG/PNG（无透明通道）/BMP/WEBP；宽高各 240–8000px；比例 [1:8, 8:1]；单文件 ≤20MB。
 - **输出**：PNG；`size` 取 `1K/2K/4K` 预设或显式像素（pro 文生图最高 4K，其余 2K）；**带图输入时输出宽高比跟随最后一张输入图**（构图保持利好）；无图输入默认方图。
 - **其他**：`text` ≤5000 字符；`seed` [0, 2147483647]；`watermark` 默认 false（true 加"AI生成"角标）；`color_palette` 3–10 个 {hex, ratio}（组图模式禁用）；`thinking_mode` 默认 true（仅文生图且无图输入时生效）。
@@ -152,7 +154,7 @@
 | 维度 | Seedream 4.0/4.5 | 万相 2.7 | Gemini 3.1/3 Pro |
 |---|---|---|---|
 | 构图保持（文档级） | 统一生成/编辑架构；编辑对齐为官方卖点（厂商自评） | 输出比例跟随最后输入图；bbox 精准局部编辑 | 参考图编辑+多轮迭代；业界口碑最佳（交叉信源一致） |
-| 参考图支持 | 多图融合；张数官方未标（第三方 2–14/10 张） | 9 张，顺序语义，URL/Base64 | 合计 14；Pro 档对象/角色/风格三类分离 |
+| 参考图支持 | 多图融合；张数官方未标（第三方 2–14/10 张） | 输入图合计 0–9 张（官方），顺序语义，URL/Base64 | 合计 14；Pro 档对象/角色/风格三类分离 |
 | API 可用性 | 同步；OpenAI 兼容风格；SDK 成熟 | 同步+异步双模；DashScope SDK | 同步；REST/官方 SDK |
 | 延迟/成本 | ¥0.2–0.25/张；推理快（官方宣称较前代提速） | ¥0.2/张（pro ¥0.5）；同步快、组图建议异步 | $0.034–0.24/图；无免费档；Batch 半价 |
 | 区域约束 | 国内直连；国际走 BytePlus | 国内直连（北京）；国际新加坡等 | 大陆不可直连 |
@@ -169,7 +171,7 @@ generate(input: { compositionImage: Blob; characterReferences?: Blob[]; styleRef
 ```
 
 - **Seedream**：`compositionImage + characterReferences` → `image[]` 参数（URL 或 Base64）；`styleReference` 并入 image 数组（无独立风格槽，靠 prompt 内 @图N 角色说明）。同步返回 `b64_json` 或 `url`。
-- **万相**：`compositionImage + characterReferences` → `input.messages[].image`（≤9 张）；`styleReference` 同上并入。注意比例跟随"最后一张输入图"——构图图应放在数组末位以锁定输出画幅。
+- **万相**：`compositionImage + characterReferences + styleReference` → `input.messages[0].content` 数组，每张图一个独立 `{image}` 对象 + 一个 `{text}` 对象（官方契约，2026-09-23 更正；总量 **0–9 张**，含构图与风格图）。注意比例跟随"最后一张输入图"——构图图必须是最后一个 `{image}` 对象以锁定输出画幅（text 可在其后）。
 - **Gemini**：三类输入可分别映射对象/角色/风格参考（Pro 档），语义最贴合；但区域不可用。
 - **鉴权环境变量约定（7B1 将提交 .env.example）**：`ARK_API_KEY`（Seedream）/ `DASHSCOPE_API_KEY`（万相）/ `GEMINI_API_KEY`（Gemini），一律服务端读取，缺失回落 mock。
 - 单张增强首帧成本量级：万相/Seedream 约 ¥0.2，Gemini 约 $0.05–0.15（1–2K）——与 Seedance 报告"生成前决策省钱"的 MVP 卖点一致（视频 ¥5–15/条 vs 首帧 ¥0.2/张）。

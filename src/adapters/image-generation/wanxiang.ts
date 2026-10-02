@@ -5,29 +5,53 @@
  * Transport: plain REST over fetch (see provider-http.ts). Uses the
  * SYNCHRONOUS multimodal-generation endpoint from the official API reference
  * (help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference,
- * fully captured in docs/PROVIDER_SPIKE.md) — no X-DashScope-Async header, no
- * task polling. The base URL defaults to the legacy dashscope.aliyuncs.com
- * domain; workspace-dedicated domains ({WorkspaceId}.cn-beijing.maas.aliyuncs.com)
- * are a constructor/env override, because the workspace id is account-specific.
+ * re-verified against the official page 2026-09-23). No X-DashScope-Async
+ * header, no task polling. The base URL defaults to the legacy
+ * dashscope.aliyuncs.com domain; workspace-dedicated domains
+ * ({WorkspaceId}.cn-beijing.maas.aliyuncs.com) are a constructor/env override,
+ * because the workspace id is account-specific.
  *
- * Ordering rule (official): with image input, the output aspect ratio follows
- * the LAST input image — so the composition frame is deliberately placed LAST
- * in the image array (character/style references first) to lock the exported
- * framing. Only successful outputs are billed.
+ * Request body (official contract, corrected 2026-09-23): the text prompt and
+ * the input images are separate objects inside input.messages[0].content —
+ * an array of {image: string} entries plus one {text: string} entry. There is
+ * NO top-level messages[0].text or messages[0].image field. (The pre-fix
+ * shape was a cross-written error, never live-verified.)
+ *
+ * Ordering rule (official): image order is defined by content-array position
+ * and the output aspect ratio follows the LAST input image — so the
+ * composition frame is deliberately placed as the LAST {image} object
+ * (character/style references first), and the prompt text follows it.
+ *
+ * Cancellation (acceptance fix round 2026-09-23): the total-budget signal is
+ * forwarded to the generation POST, and a plain-URL result image is downloaded
+ * under the SAME budget — an expired budget aborts the download and never
+ * starts a new one. Only successful outputs are billed.
  */
 import { z } from "zod";
 
-import type { GeneratedImageArtifact, ImageGenerationAdapter, ImageGenerationInput } from "./types";
+import type {
+  GeneratedImageArtifact,
+  ImageGenerationAdapter,
+  ImageGenerationContext,
+  ImageGenerationInput,
+} from "./types";
 
 import { blobToDataUrl, dataUrlToBytes } from "./binary";
-import { postJsonForProvider } from "./provider-http";
+import {
+  ProviderResultDeliveryError,
+  assertAllowedProviderUrl,
+  postJsonForProvider,
+} from "./provider-http";
 
 export const WANXIANG_ADAPTER_ID = "wanxiang";
-export const WANXIANG_ADAPTER_VERSION = "1.0.0";
+export const WANXIANG_ADAPTER_VERSION = "1.1.0";
 
 export const WANXIANG_DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com";
 export const WANXIANG_DEFAULT_MODEL = "wan2.7-image";
 export const WANXIANG_DEFAULT_SIZE = "2K";
+
+/** Official input limit: 0–9 input images IN TOTAL (composition + refs + style). */
+export const WANXIANG_MAX_INPUT_IMAGES = 9;
 
 /**
  * output.choices[].message.content[] carrying an image (data URI or URL).
@@ -51,6 +75,11 @@ const dashscopeImageResponseSchema = z.object({
   request_id: z.string().optional(),
   usage: z.unknown().optional(),
 });
+
+/** One content-array entry: an image (data URL or public URL) as its own object. */
+interface ContentImage {
+  image: string;
+}
 
 export interface WanxiangAdapterOptions {
   apiKey: string;
@@ -84,7 +113,19 @@ export class WanxiangImageGenerationAdapter implements ImageGenerationAdapter {
     };
   }
 
-  async generate(input: ImageGenerationInput): Promise<GeneratedImageArtifact> {
+  async generate(
+    input: ImageGenerationInput,
+    context?: ImageGenerationContext,
+  ): Promise<GeneratedImageArtifact> {
+    const totalInputImages =
+      1 + (input.characterReferences?.length ?? 0) + (input.styleReference !== undefined ? 1 : 0);
+    if (totalInputImages > WANXIANG_MAX_INPUT_IMAGES) {
+      throw new Error(
+        `wanxiang accepts at most ${WANXIANG_MAX_INPUT_IMAGES} input images in total; got ${totalInputImages} ` +
+          "(1 composition + character references + optional style reference)",
+      );
+    }
+
     // Composition LAST: the output aspect ratio follows the last input image.
     const images: string[] = [];
     for (const reference of input.characterReferences ?? []) {
@@ -95,14 +136,17 @@ export class WanxiangImageGenerationAdapter implements ImageGenerationAdapter {
     }
     images.push(await blobToDataUrl(input.compositionImage));
 
+    const content: Array<ContentImage | { text: string }> = [
+      ...images.map((image): ContentImage => ({ image })),
+      { text: input.prompt },
+    ];
     const body = {
       model: this.options.model,
       input: {
         messages: [
           {
             role: "user",
-            text: input.prompt,
-            image: images,
+            content,
           },
         ],
       },
@@ -128,25 +172,84 @@ export class WanxiangImageGenerationAdapter implements ImageGenerationAdapter {
         schema: dashscopeImageResponseSchema,
         timeoutMs: this.options.timeoutMs,
         maxAttempts: this.options.maxAttempts,
+        signal: context?.signal,
+        deadlineAt: context?.deadlineAt,
         fetchImpl: this.options.fetchImpl,
         sleep: this.options.sleep,
       },
     );
 
     const image0 = response.output.choices[0]!.message.content[0]!.image;
-    const inline = dataUrlToBytes(image0);
+    // The generation itself already succeeded (2xx + contract): from here a
+    // failure means the RESULT could not be delivered, not that nothing ran —
+    // ProviderResultDeliveryError keeps that distinction and the charge
+    // warning (acceptance R2-1).
+    let inline: ReturnType<typeof dataUrlToBytes>;
+    try {
+      inline = dataUrlToBytes(image0);
+    } catch (error) {
+      throw new ProviderResultDeliveryError(
+        `decoding the inline result image failed (${
+          error instanceof Error ? error.message : String(error)
+        })`,
+      );
+    }
     let image: Blob;
     if (inline !== null) {
       image = new Blob([inline.bytes as BlobPart], { type: inline.mimeType });
     } else {
-      // A plain URL: download the bytes through the same injectable fetch.
-      const downloadResponse = await (this.options.fetchImpl ?? fetch)(image0);
-      if (!downloadResponse.ok) {
-        throw new Error(
-          `wanxiang result image download failed with HTTP ${downloadResponse.status}`,
+      // A plain URL: download the bytes through the same injectable fetch,
+      // under the SAME total budget (acceptance P1-3) — the download is
+      // aborted when the budget expires and never starts after it has.
+      try {
+        assertAllowedProviderUrl(image0);
+      } catch (error) {
+        throw new ProviderResultDeliveryError(
+          `the result URL was refused by the outbound URL policy (${
+            error instanceof Error ? error.message : String(error)
+          })`,
         );
       }
-      image = await downloadResponse.blob();
+      context?.signal?.throwIfAborted();
+      if (context?.deadlineAt !== undefined && context.deadlineAt - Date.now() <= 0) {
+        throw new ProviderResultDeliveryError(
+          "the result download was skipped because the total generation budget was exhausted",
+        );
+      }
+      const downloadFetch = this.options.fetchImpl ?? fetch;
+      let downloadResponse: Response;
+      try {
+        downloadResponse = await downloadFetch(image0, {
+          signal: context?.signal,
+        });
+      } catch (error) {
+        if (context?.signal?.aborted) {
+          // The caller's abort keeps its own error and 504 wording.
+          throw error;
+        }
+        throw new ProviderResultDeliveryError(
+          `downloading the result image failed (${
+            error instanceof Error ? error.message : String(error)
+          })`,
+        );
+      }
+      if (!downloadResponse.ok) {
+        throw new ProviderResultDeliveryError(
+          `downloading the result image failed with HTTP ${downloadResponse.status}`,
+        );
+      }
+      try {
+        image = await downloadResponse.blob();
+      } catch (error) {
+        if (context?.signal?.aborted) {
+          throw error;
+        }
+        throw new ProviderResultDeliveryError(
+          `reading the downloaded result image failed (${
+            error instanceof Error ? error.message : String(error)
+          })`,
+        );
+      }
     }
 
     return {
@@ -163,6 +266,7 @@ export class WanxiangImageGenerationAdapter implements ImageGenerationAdapter {
         compositionBytes: String(input.compositionImage.size),
         referenceCount: String(input.characterReferences?.length ?? 0),
         hasStyleReference: String(input.styleReference !== undefined),
+        totalInputImages: String(totalInputImages),
         watermark: String(this.options.watermark ?? false),
       },
     };
