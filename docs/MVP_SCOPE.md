@@ -57,7 +57,7 @@
 - Multi-keyframe animation timeline.
 - AI video generation.
 - Node-based workflows.
-- Multiple production image/video providers.
+- Multiple production image/video providers. (Amended by D027, 2026-09-21: exactly two image adapters — Doubao-Seedream primary, Wan 2.7 backup — in a single-active server-side configuration; video providers remain single, and no automatic failover or multi-provider UI is added.)
 
 ## Functional definition of done
 

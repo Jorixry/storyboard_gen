@@ -21,6 +21,9 @@ const eslintConfig = tseslint.config(
       "test-results/**",
       "out/**",
       "next-env.d.ts",
+      // Ignored local review inputs (PROJECT_STRUCTURE.md): never part of the
+      // program; without this a review worktree copy under tmp/ breaks lint.
+      "tmp/**",
     ],
   },
 );

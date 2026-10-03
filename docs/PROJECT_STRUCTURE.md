@@ -15,7 +15,9 @@ src/content/               Compiled-content loader
 src/features/              User-facing vertical features
 src/adapters/              External image and prompt-provider boundaries
 src/state/                 Canonical shot-state store
+src/app/api/               Server-side adapter routes (enhanced-frame)
 tests/                     Deterministic fixtures, unit and browser tests
+.env.example               Documented names of server-side settings (no secrets)
 ```
 
 Important engineering documents inside `docs/`:
@@ -70,12 +72,13 @@ provider adapters must not mutate canonical state
 - Preview deterministic interpolation.
 - Capture start/end camera-view images.
 
-### `first-frame`
+### `enhanced-frame`
 
-- Render the raw guide frame.
-- Collect optional 2D character/style references.
-- Call one server-side image adapter explicitly.
-- Preserve raw export when generation fails.
+- Optional enhanced first frame (Prompt 7B1): collapsed-by-default explicit action.
+- Capture the raw guide frame (current pose) through the raw-export readiness gate.
+- Compile the deterministic generic prompt (Prompt 6 pipeline) from the same frozen state.
+- POST to the server-side `/api/enhanced-frame` route; exactly one adapter active per D027 (deterministic mock by default until Prompt 7B2).
+- Failure is a local, retryable message; raw export is never blocked.
 
 ### `prompt-compiler`
 

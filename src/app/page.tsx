@@ -23,6 +23,7 @@ import { COMPILED_SHOT_TEMPLATES } from "@/content/compiled-content";
 import { verticalFovDeg } from "@/domain/camera-math";
 import { interpolateCameraPose } from "@/domain/movement";
 import { TransformRefinement } from "@/features/director-stage/TransformRefinement";
+import { EnhancedFrame } from "@/features/enhanced-frame/EnhancedFrame";
 import { RawExport } from "@/features/export-package/RawExport";
 import { DirectorStage, type DirectorStageView } from "@/features/rendering/DirectorStage";
 import {
@@ -205,6 +206,7 @@ export default function Home() {
             />
             <TransformRefinement onWarning={setWarning} />
             <RawExport />
+            <EnhancedFrame />
             <p className="command-warning" data-testid="command-warning" hidden={warning === ""}>
               {warning}
             </p>

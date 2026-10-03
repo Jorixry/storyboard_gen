@@ -45,6 +45,33 @@ export const shotStateSchema = z.strictObject({
 
 export type ShotState = z.infer<typeof shotStateSchema>;
 
+/**
+ * Deterministic canonical-JSON fingerprint of a complete ShotState (acceptance
+ * fix round 2026-09-23): object keys are sorted, so two states compare equal
+ * exactly when their CONTENT is equal, independent of key insertion order.
+ *
+ * Purpose: match a generated artifact against the state it was generated
+ * from. This deliberately covers every field — not only `id`, because a shot
+ * keeps its ID while camera, aspect ratio, characters or movement are edited.
+ * The fingerprint is an equality comparator, not a hash or security primitive.
+ */
+export function shotStateFingerprint(state: ShotState): string {
+  return canonicalJson(state);
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entryValue]) => entryValue !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${canonicalJson(entryValue)}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
 export interface CreateShotStateOptions {
   /**
    * ID factory override. Tests inject deterministic factories; production
