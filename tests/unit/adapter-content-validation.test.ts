@@ -39,14 +39,14 @@ constraints:
 `;
 
 describe("adapter content validation against the real repository content", () => {
-  it("validates generic-video.yaml and returns its typed config", async () => {
+  it("validates both adapter configs and returns their typed forms", async () => {
     const { adapterConfigs, issues, fileCount } = await validateAdapterConfigs(
       path.join(realContentDir, "adapters"),
       realContentDir,
     );
     expect(issues).toEqual([]);
-    expect(fileCount).toBe(1);
-    expect(adapterConfigs).toHaveLength(1);
+    expect(fileCount).toBe(2);
+    expect(adapterConfigs).toHaveLength(2);
     expect(adapterConfigs[0]).toMatchObject({
       id: "generic_video",
       version: 1,
@@ -66,13 +66,37 @@ describe("adapter content validation against the real repository content", () =>
         ],
       },
     });
+    // Prompt 8 target-model adapter config (D028): polish disabled, same
+    // protected facts, guidance summary in directorNotes.
+    expect(adapterConfigs[1]).toMatchObject({
+      id: "seedance_video",
+      version: 1,
+      status: "engineering_placeholder",
+      constraints: {
+        preserveStructuredFacts: true,
+        allowLlmPolish: false,
+        llmMayChange: ["wording"],
+        llmMayNotChange: [
+          "character_identity",
+          "character_position",
+          "camera_geometry",
+          "focal_length",
+          "movement_type",
+          "continuity_rules",
+        ],
+      },
+    });
+    expect(adapterConfigs[1]!.directorNotes ?? "").toContain("不得声称官方支持");
   });
 
   it("surfaced through validateContent with counts and zero issues", async () => {
     const result = await validateContent(realContentDir);
     expect(result.issues).toEqual([]);
-    expect(result.adapterConfigFileCount).toBe(1);
-    expect(result.adapterConfigs.map((config) => config.id)).toEqual(["generic_video"]);
+    expect(result.adapterConfigFileCount).toBe(2);
+    expect(result.adapterConfigs.map((config) => config.id)).toEqual([
+      "generic_video",
+      "seedance_video",
+    ]);
   });
 });
 

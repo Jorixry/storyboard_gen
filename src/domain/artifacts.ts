@@ -137,6 +137,179 @@ export const rawExportManifestSchema = z.strictObject({
 
 export type RawExportManifest = z.infer<typeof rawExportManifestSchema>;
 
+/* ------------------------------------------------------------------------- */
+/* Full export package (Prompt 8 / Phase 2 §2.3 + Phase 3 Day 9)             */
+/* ------------------------------------------------------------------------- */
+
+export const FULL_EXPORT_MANIFEST_VERSION = 2;
+
+/**
+ * Exact filenames inside the FULL input package (the MVP_SCOPE "Outputs"
+ * bundle). Everything the raw export carries, plus both compiled prompts and
+ * an optional enhanced first frame whose extension follows the artifact's
+ * actual MIME type (mock results are SVG; provider results are raster).
+ */
+export const FULL_EXPORT_FILENAMES = {
+  shotState: "shot-state.json",
+  compositionRaw: "composition-raw.png",
+  movementStart: "movement-start.png",
+  movementEnd: "movement-end.png",
+  promptGeneric: "prompt-generic.txt",
+  promptTarget: "prompt-seedance.txt",
+  enhancedFirstFrameBases: [
+    "enhanced-first-frame.png",
+    "enhanced-first-frame.svg",
+    "enhanced-first-frame.jpeg",
+    "enhanced-first-frame.webp",
+  ] as const,
+  manifest: "manifest.json",
+} as const;
+
+/** Every file name the full package may contain (manifest.json excluded). */
+export const FULL_EXPORT_ARTIFACT_NAMES = [
+  "shot-state.json",
+  "composition-raw.png",
+  "movement-start.png",
+  "movement-end.png",
+  "prompt-generic.txt",
+  "prompt-seedance.txt",
+  ...FULL_EXPORT_FILENAMES.enhancedFirstFrameBases,
+] as const;
+
+export type FullExportArtifactName = (typeof FULL_EXPORT_ARTIFACT_NAMES)[number];
+
+const FULL_PROMPT_FILENAMES = z.enum(["prompt-generic.txt", "prompt-seedance.txt"]);
+const FULL_ENHANCED_FILENAMES = z.enum(FULL_EXPORT_FILENAMES.enhancedFirstFrameBases);
+
+const fullManifestArtifactSchema = z.strictObject({
+  name: z.enum(FULL_EXPORT_ARTIFACT_NAMES),
+  sha256: z.string().regex(SHA256_HEX_REGEX, {
+    message: "sha256 must be a lowercase 64-hex-digit digest",
+  }),
+  bytes: z.number().int().nonnegative(),
+});
+
+/** Adapter identity triple shared by the prompt and enhanced-frame records. */
+const adapterRefSchema = z.strictObject({
+  adapterId: z.string().min(1),
+  adapterVersion: z.string().min(1),
+  adapterConfigVersion: z.number().int().min(1).optional(),
+});
+
+const fullManifestFilesSchema = z.array(fullManifestArtifactSchema).superRefine((files, ctx) => {
+  const required: readonly string[] = [
+    "shot-state.json",
+    "composition-raw.png",
+    "movement-start.png",
+    "movement-end.png",
+    "prompt-generic.txt",
+    "prompt-seedance.txt",
+  ];
+  const names: string[] = files.map((file) => file.name);
+  const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+  if (duplicates.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: [],
+      message: `manifest files must not repeat entries; duplicated: ${[...new Set(duplicates)].join(", ")}`,
+    });
+    return;
+  }
+  const enhanced = names.filter((name) =>
+    (FULL_EXPORT_FILENAMES.enhancedFirstFrameBases as readonly string[]).includes(name),
+  );
+  if (enhanced.length > 1) {
+    ctx.addIssue({
+      code: "custom",
+      path: [],
+      message: `at most one enhanced-first-frame file may appear; found: ${enhanced.join(", ")}`,
+    });
+    return;
+  }
+  const missing = required.filter((name) => !names.includes(name));
+  const extra = names.filter(
+    (name) =>
+      !required.includes(name) &&
+      !(FULL_EXPORT_FILENAMES.enhancedFirstFrameBases as readonly string[]).includes(name),
+  );
+  if (missing.length > 0 || extra.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: [],
+      message:
+        `manifest files must be exactly the six required artifacts plus at most one enhanced ` +
+        `first frame; missing: ${missing.length > 0 ? missing.join(", ") : "none"}; ` +
+        `unexpected: ${extra.length > 0 ? extra.join(", ") : "none"}`,
+    });
+  }
+});
+
+/**
+ * Executable, versioned, strict manifest schema for the FULL input package.
+ * Beyond the raw manifest it records BOTH prompt adapters and the enhanced
+ * frame's provenance, so a reviewer can verify every artifact points at the
+ * same state/template/adapter versions without opening the files.
+ */
+export const fullExportManifestSchema = z.strictObject({
+  kind: z.literal("storyboard-director-full-export"),
+  manifestVersion: z.literal(FULL_EXPORT_MANIFEST_VERSION),
+  generatedAt: iso8601UtcSchema,
+  shotState: z.strictObject({
+    id: z.string().min(1),
+    schemaVersion: z.literal(SHOT_STATE_SCHEMA_VERSION),
+    template: z.strictObject({
+      id: templateIdSchema,
+      version: z.number().int().min(1),
+      reviewStatus: reviewStatusSchema,
+    }),
+    aspectRatio: aspectRatioSchema,
+  }),
+  movement: z.strictObject({
+    type: movementTypeSchema,
+    durationSeconds: z.number().finite().min(0.5).max(20),
+    easing: easingSchema,
+  }),
+  prompts: z.strictObject({
+    generic: adapterRefSchema.extend({ fileName: FULL_PROMPT_FILENAMES }),
+    target: adapterRefSchema.extend({ fileName: FULL_PROMPT_FILENAMES }),
+  }),
+  enhancedFrame: z.union([
+    z.strictObject({
+      included: z.literal(true),
+      fileName: FULL_ENHANCED_FILENAMES,
+      adapter: adapterRefSchema,
+      provider: z.string().min(1),
+      /** Canonical fingerprint of the ShotState the frame was generated from. */
+      sourceFingerprint: z.string().min(1),
+    }),
+    z.strictObject({
+      included: z.literal(false),
+      reason: z.enum(["absent", "stale"]),
+    }),
+  ]),
+  files: fullManifestFilesSchema,
+});
+
+export type FullExportManifest = z.infer<typeof fullExportManifestSchema>;
+
+/** Maps an enhanced-frame MIME type to the packaged filename. */
+export function enhancedFirstFrameFileName(
+  mimeType: string,
+): (typeof FULL_EXPORT_FILENAMES.enhancedFirstFrameBases)[number] {
+  switch (mimeType) {
+    case "image/png":
+      return "enhanced-first-frame.png";
+    case "image/svg+xml":
+      return "enhanced-first-frame.svg";
+    case "image/jpeg":
+      return "enhanced-first-frame.jpeg";
+    case "image/webp":
+      return "enhanced-first-frame.webp";
+    default:
+      throw new Error(`unsupported enhanced-frame mime type "${mimeType}"`);
+  }
+}
+
 /** Deterministic export raster: long edge 1280 px, dpr 1, aspect-exact. */
 export const EXPORT_IMAGE_LONG_EDGE_PX = 1280;
 

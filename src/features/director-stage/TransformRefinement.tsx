@@ -97,20 +97,44 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
   const characterOf = (id: CharacterId) =>
     shotState.characters.find((character) => character.id === id)!;
 
+  /**
+   * Safe-range feedback (Phase 3 Day 9): the store commands clamp silently,
+   * so after committing, the APPLIED value is read back and compared with the
+   * requested one; any difference is surfaced as a visible warning instead of
+   * staying invisible. Refusals (command errors) keep their reason.
+   */
+  const commitWithReadBack = (
+    label: string,
+    commit: () => void,
+    readBack: () => number,
+    requested: number,
+  ) => {
+    try {
+      commit();
+      const applied = readBack();
+      if (applied !== requested) {
+        onWarning(
+          `「${label}」请求值 ${requested} 超出工程安全范围，已收拢为 ${applied}（范围由房间边界与内容 Schema 推导，非导演批准范围）`,
+        );
+      } else {
+        onWarning("");
+      }
+    } catch (error) {
+      onWarning(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const commitVec3 = (
+    label: string,
     apply: (next: Vec3) => void,
+    readBack: () => number,
     current: Vec3,
     index: number,
     parsed: number,
   ) => {
     const next = [...current] as Vec3;
     next[index] = parsed;
-    try {
-      apply(next);
-      onWarning("");
-    } catch (error) {
-      onWarning(error instanceof Error ? error.message : String(error));
-    }
+    commitWithReadBack(label, () => apply(next), readBack, parsed);
   };
 
   const characterA = characterOf("character_a");
@@ -135,7 +159,16 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_X_RANGE_M.max}
               step={0.05}
               testId="input-camera-position-x"
-              onCommit={(next) => commitVec3(setCameraPosition, camera.position, 0, next)}
+              onCommit={(next) =>
+                commitVec3(
+                  "相机位置 x",
+                  setCameraPosition,
+                  () => appShotStore.getState().shotState!.camera.position[0],
+                  camera.position,
+                  0,
+                  next,
+                )
+              }
             />
             <NumberField
               label="位置 y"
@@ -145,7 +178,16 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_Y_RANGE_M.max}
               step={0.05}
               testId="input-camera-position-y"
-              onCommit={(next) => commitVec3(setCameraPosition, camera.position, 1, next)}
+              onCommit={(next) =>
+                commitVec3(
+                  "相机位置 y",
+                  setCameraPosition,
+                  () => appShotStore.getState().shotState!.camera.position[1],
+                  camera.position,
+                  1,
+                  next,
+                )
+              }
             />
             <NumberField
               label="位置 z"
@@ -155,7 +197,16 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_Z_RANGE_M.max}
               step={0.05}
               testId="input-camera-position-z"
-              onCommit={(next) => commitVec3(setCameraPosition, camera.position, 2, next)}
+              onCommit={(next) =>
+                commitVec3(
+                  "相机位置 z",
+                  setCameraPosition,
+                  () => appShotStore.getState().shotState!.camera.position[2],
+                  camera.position,
+                  2,
+                  next,
+                )
+              }
             />
           </div>
           <div className="number-field-row">
@@ -167,7 +218,16 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_X_RANGE_M.max}
               step={0.05}
               testId="input-camera-target-x"
-              onCommit={(next) => commitVec3(setCameraTarget, camera.target, 0, next)}
+              onCommit={(next) =>
+                commitVec3(
+                  "相机目标 x",
+                  setCameraTarget,
+                  () => appShotStore.getState().shotState!.camera.target[0],
+                  camera.target,
+                  0,
+                  next,
+                )
+              }
             />
             <NumberField
               label="目标 y"
@@ -177,7 +237,16 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_Y_RANGE_M.max}
               step={0.05}
               testId="input-camera-target-y"
-              onCommit={(next) => commitVec3(setCameraTarget, camera.target, 1, next)}
+              onCommit={(next) =>
+                commitVec3(
+                  "相机目标 y",
+                  setCameraTarget,
+                  () => appShotStore.getState().shotState!.camera.target[1],
+                  camera.target,
+                  1,
+                  next,
+                )
+              }
             />
             <NumberField
               label="目标 z"
@@ -187,7 +256,16 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_Z_RANGE_M.max}
               step={0.05}
               testId="input-camera-target-z"
-              onCommit={(next) => commitVec3(setCameraTarget, camera.target, 2, next)}
+              onCommit={(next) =>
+                commitVec3(
+                  "相机目标 z",
+                  setCameraTarget,
+                  () => appShotStore.getState().shotState!.camera.target[2],
+                  camera.target,
+                  2,
+                  next,
+                )
+              }
             />
           </div>
           <NumberField
@@ -199,14 +277,14 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
             max={200}
             step={1}
             testId="input-camera-focal-length"
-            onCommit={(next) => {
-              try {
-                setCameraFocalLength(next);
-                onWarning("");
-              } catch (error) {
-                onWarning(error instanceof Error ? error.message : String(error));
-              }
-            }}
+            onCommit={(next) =>
+              commitWithReadBack(
+                "焦距",
+                () => setCameraFocalLength(next),
+                () => appShotStore.getState().shotState!.camera.focalLengthMm,
+                next,
+              )
+            }
           />
         </fieldset>
         {(["character_a", "character_b"] as const).map((id) => {
@@ -225,7 +303,16 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                   step={0.05}
                   testId={`input-${id}-position-x`}
                   onCommit={(next) =>
-                    commitVec3(setCharacterPosition.bind(null, id), character.position, 0, next)
+                    commitVec3(
+                      `${label}位置 x`,
+                      setCharacterPosition.bind(null, id),
+                      () =>
+                        appShotStore.getState().shotState!.characters.find((c) => c.id === id)!
+                          .position[0],
+                      character.position,
+                      0,
+                      next,
+                    )
                   }
                 />
                 <NumberField
@@ -237,7 +324,16 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                   step={0.05}
                   testId={`input-${id}-position-z`}
                   onCommit={(next) =>
-                    commitVec3(setCharacterPosition.bind(null, id), character.position, 2, next)
+                    commitVec3(
+                      `${label}位置 z`,
+                      setCharacterPosition.bind(null, id),
+                      () =>
+                        appShotStore.getState().shotState!.characters.find((c) => c.id === id)!
+                          .position[2],
+                      character.position,
+                      2,
+                      next,
+                    )
                   }
                 />
                 <NumberField

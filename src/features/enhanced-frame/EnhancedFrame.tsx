@@ -39,6 +39,7 @@ import { shotStateSchema, shotStateFingerprint, type ShotState } from "@/domain/
 import { compileVideoPrompt } from "@/features/prompt-compiler/compile";
 import { DirectorStage, type StageSnapshot } from "@/features/rendering/DirectorStage";
 import { appShotStore } from "@/state/app-shot-store";
+import { enhancedFrameStore } from "@/state/enhanced-frame-store";
 
 import { poseMatchesSnapshot } from "@/features/export-package/capture-readiness";
 
@@ -51,16 +52,6 @@ const PHASE_COPY: Record<Exclude<Phase, "idle" | "error">, string> = {
   requesting: "正在生成增强首帧（真实 provider 可能需要一到两分钟，请勿离开页面）…",
   done: "",
 };
-
-interface EnhancedFrameResultView {
-  dataUrl: string;
-  adapterId: string;
-  adapterVersion: string;
-  provider: string;
-  metadata: Record<string, string>;
-  /** Complete ShotState snapshot the image was generated from (P2-1). */
-  sourceState: ShotState;
-}
 
 /** Hidden single-pose capture stage: the raw-export pattern, CURRENT pose only. */
 function CompositionCaptureStage({
@@ -122,10 +113,12 @@ function CompositionCaptureStage({
 
 export function EnhancedFrame() {
   const shotState = useStore(appShotStore, (state) => state.shotState);
+  // Derived artifact, shared with the export package (Prompt 8): the result
+  // lives in its own store, never in the canonical appShotStore.
+  const result = useStore(enhancedFrameStore, (state) => state.result);
   const [phase, setPhase] = useState<Phase>("idle");
   const [frozen, setFrozen] = useState<ShotState | null>(null);
   const [status, setStatus] = useState("");
-  const [result, setResult] = useState<EnhancedFrameResultView | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   /** Monotonic request sequence: late responses from older requests are dropped. */
   const requestSeq = useRef(0);
@@ -149,7 +142,7 @@ export function EnhancedFrame() {
       return;
     }
     requestSeq.current += 1;
-    setResult(null);
+    enhancedFrameStore.getState().clearResult();
     setErrorMessage("");
     setFrozen(parsed.data);
     setPhase("capturing");
@@ -195,8 +188,9 @@ export function EnhancedFrame() {
       }
       setPhase("done");
       setStatus("");
-      setResult({
-        dataUrl: `data:${payload.imageMimeType};base64,${payload.imageBase64}`,
+      enhancedFrameStore.getState().setResult({
+        imageBase64: payload.imageBase64,
+        imageMimeType: payload.imageMimeType,
         adapterId: payload.adapterId,
         adapterVersion: payload.adapterVersion,
         provider: payload.provider,
@@ -266,7 +260,7 @@ export function EnhancedFrame() {
                 optimization does not apply to data URLs. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={result.dataUrl}
+              src={`data:${result.imageMimeType};base64,${result.imageBase64}`}
               alt={resultStale ? "增强首帧（已过期）" : "增强首帧"}
               data-testid="enhanced-frame-image"
             />

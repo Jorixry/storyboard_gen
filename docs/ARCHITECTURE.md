@@ -221,6 +221,18 @@ interface ImageGenerationAdapter {
 
 The first implementation should include deterministic mock adapters before any paid provider.
 
+## Target-model prompt adapter (Prompt 8, developer option a, 2026-10-08)
+
+- `SeedanceVideoPromptAdapter` (`src/adapters/video-prompts/seedance.ts`, id `seedance_video@1.0.0`) is the ONE versioned target-model prompt adapter the MVP carries next to the generic one, selected by the developer (option a). It is ENGINEERING-DERIVED from the official prompt guidance surveyed in `docs/Seedance-API-调研报告-2026-09-14.md` — Shot-structured over second-level time codes, descriptive movement language, ONE main camera movement, no parametrized focal/ISO/f-number prose (geometry is carried by the exported reference images and shot-state.json) — and every output states it does NOT claim official Seedance support (D026 account-level verification still open). Its config is versioned content (`content/adapters/seedance-video.yaml`, validated by the content pipeline and injected like the generic config; `compile:content` emits both). Same guarantees as the generic adapter: deterministic byte-identical output, fixed-order warnings, purity, and golden snapshots per template (`tests/fixtures/prompts/*.seedance-prompt.txt`).
+
+## Full input package (Prompt 8 / Phase 2 §2.3 + Phase 3 Day 9)
+
+- `buildFullExportPackage` (`src/features/export-package/full-export-package.ts`) bundles the MVP "Outputs" set from ONE frozen ShotState: shot-state.json, composition-raw.png, movement-start.png, movement-end.png (the same readiness-gated rasters the raw export captures — the capture stage is now shared in `capture-stage.tsx`), prompt-generic.txt, prompt-seedance.txt, and an OPTIONAL enhanced first frame whose filename extension follows the artifact's actual MIME type (mock results are SVG).
+- Same-source verification is EXECUTABLE: the builder REFUSES the package when either prompt was not compiled from this exact state (state id + template id/version/review status), and an enhanced frame whose full-state fingerprint no longer matches is excluded with manifest reason "stale" (missing frames record "absent") rather than shipping a frame that no longer describes the state.
+- `fullExportManifestSchema` (`src/domain/artifacts.ts`, manifestVersion 2, strict) covers every hashed file plus both prompt adapters' identities and the enhanced frame's provenance (adapter, provider, source fingerprint); the builder validates the manifest before wrapping and cross-checks byte counts, mirroring the raw package. STORE-only ZIP, byte-deterministic for one snapshot + one timestamp; filename `shot-<id>-full.zip`.
+- UI (`src/features/export-package/FullExport.tsx`): a second, independent export button next to the raw ZIP; the raw export remains fully usable on its own. The enhanced-frame result moved into its own derived-artifact store (`src/state/enhanced-frame-store.ts`) — never into the canonical appShotStore — so the export reads the current result while the provenance/staleness rules stay the 9b320fa ones.
+- Phase 3 (Day 9): first-use onboarding steps render in the studio empty state; the advanced-refinement fields surface SAFE-RANGE feedback — every commit reads back the applied (clamped) value and reports the clamp visibly instead of silently (yaw wraps rather than clamps, so it does not warn).
+
 ## Enhanced first-frame service (Prompt 7B1 / Phase 2 Day 8 fallback)
 
 Implemented 2026-09-22 as the mock-path finish; the production adapters that followed the same day (Prompt 7B2) are documented in the next section.

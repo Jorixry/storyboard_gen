@@ -1,0 +1,26 @@
+id: seedance_video
+version: 1
+status: engineering_placeholder
+descriptionZh: Seedance 目标模型的工程推导版 prompt 输出；依据 2026-09-14 官方文档调研报告的 Prompt 指南生成，不声称官方支持
+
+ordering:
+  - subjects
+  - composition
+  - optics
+  - motion
+  - continuity
+
+constraints:
+  preserveStructuredFacts: true
+  allowLlmPolish: false
+  llmMayChange:
+    - wording
+  llmMayNotChange:
+    - character_identity
+    - character_position
+    - camera_geometry
+    - focal_length
+    - movement_type
+    - continuity_rules
+
+directorNotes: 工程推导自 docs/Seedance-API-调研报告-2026-09-14.md 的官方 Prompt 指南（分镜结构优先于时间码、描述性运镜、避免 f 值/ISO/毫米焦距等参数化表述、单次生成一个主运镜、无 negative_prompt）。D026 账户级核查完成前不得声称官方支持；升级官方指南口径时须 bump 本文件版本。
