@@ -272,7 +272,7 @@ describe("attachSessionPersistence", () => {
         shotState: ShotState;
       };
       expect(saved.shotState.id).toBe("hydrate-1");
-      expect(saved.shotState.camera.position[2]).toBeCloseTo(1.6, 10);
+      expect(saved.shotState.camera.position[2]).toBeCloseTo(0.6, 10); // D029 OTS v3 pose
 
       // A template re-selection persists the NEW id as well.
       store.getState().selectTemplate("dialogue_medium_two_shot");

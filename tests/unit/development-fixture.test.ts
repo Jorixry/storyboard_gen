@@ -23,7 +23,7 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
     expect(fixture.template.reviewStatus).toBe("engineering_ready");
     expect(fixture.shotState.template).toEqual({
       id: "dialogue_ots_a_to_b",
-      version: 2, // OTS v2 (D025 75mm)
+      version: 3, // OTS v3 (D029 camera reposition; v2 was D025 75mm)
       reviewStatus: "engineering_ready",
     });
     expect(fixture.isDirectorApproved).toBe(false);

@@ -42,31 +42,31 @@ interface StageSnapshot {
   drawingBuffer: { width: number; height: number };
 }
 
-/** Canonical dialogue_ots_a_to_b values (committed template YAML). */
+/** Canonical dialogue_ots_a_to_b values (committed template YAML, v3 / D029). */
 const OTS_A_TO_B = {
-  camera: { position: [-1.25, 1.7, 2] as const, target: [0.8, 1.55, 0] as const, focal: 75 },
-  start: { position: [-1.25, 1.7, 2] as const, target: [0.8, 1.55, 0] as const },
-  end: { position: [-1.05, 1.68, 1.4] as const, target: [0.8, 1.55, 0] as const },
+  camera: { position: [-2.15, 1.45, 0.8] as const, target: [0.85, 1.55, -0.2] as const, focal: 75 },
+  start: { position: [-2.15, 1.45, 0.8] as const, target: [0.85, 1.55, -0.2] as const },
+  end: { position: [-1.95, 1.43, 0.2] as const, target: [0.85, 1.55, -0.2] as const },
 };
-/** dialogue_ots_b_to_a (mirrored reverse pair, also 50mm dolly_in). */
+/** dialogue_ots_b_to_a (mirrored reverse pair, dolly_in, v3 / D029). */
 const OTS_B_TO_A = {
-  camera: { position: [1.25, 1.7, 2] as const, target: [-0.8, 1.55, 0] as const, focal: 75 },
-  start: { position: [1.25, 1.7, 2] as const, target: [-0.8, 1.55, 0] as const },
-  end: { position: [1.05, 1.68, 1.4] as const, target: [-0.8, 1.55, 0] as const },
+  camera: { position: [2.15, 1.45, 0.8] as const, target: [-0.85, 1.55, -0.2] as const, focal: 75 },
+  start: { position: [2.15, 1.45, 0.8] as const, target: [-0.85, 1.55, -0.2] as const },
+  end: { position: [1.95, 1.43, 0.2] as const, target: [-0.85, 1.55, -0.2] as const },
 };
 /** dialogue_medium_two_shot: static, all three poses identical, 35mm. */
 const MEDIUM = {
   camera: { position: [0, 1.6, 3.4] as const, target: [0, 1.55, 0] as const, focal: 35 },
 };
 /** makeCloser on ots_a_to_b: 20% along position->target. */
-const CLOSER_POSITION: [number, number, number] = [-0.84, 1.67, 1.6];
+const CLOSER_POSITION: [number, number, number] = [-1.55, 1.47, 0.6];
 /** ease_in_out (smoothstep) eased progress at t=0.25. */
 const EASED_QUARTER = 0.15625;
-const MID_POSITION: [number, number, number] = [-1.15, 1.69, 1.7];
+const MID_POSITION: [number, number, number] = [-2.05, 1.44, 0.5];
 const QUARTER_POSITION: [number, number, number] = [
-  -1.25 + 0.2 * EASED_QUARTER,
-  1.7 - 0.02 * EASED_QUARTER,
-  2.0 - 0.6 * EASED_QUARTER,
+  -2.15 + 0.2 * EASED_QUARTER,
+  1.45 - 0.02 * EASED_QUARTER,
+  0.8 - 0.6 * EASED_QUARTER,
 ];
 
 const SESSION_KEY = "storyboard-director.session.v1";
@@ -301,9 +301,9 @@ test("movement preview scrubs eased start-to-end poses without touching the cano
 
   // The canonical current camera is untouched by the preview...
   await expect(page.getByTestId("preview-current-camera")).toContainText(
-    "camera [-1.25, 1.70, 2.00] · 75mm",
+    "camera [-2.15, 1.45, 0.80] · 75mm",
   );
-  await expect(page.getByTestId("footer-camera")).toContainText("camera [-1.25, 1.70, 2.00]");
+  await expect(page.getByTestId("footer-camera")).toContainText("camera [-2.15, 1.45, 0.80]");
 
   // ...and disabling the preview returns the camera view to it.
   await page.getByTestId("preview-toggle").click();
@@ -342,13 +342,13 @@ test("template selection through raw export downloads the deterministic five-fil
   expect(result.state.schemaVersion).toBe(1);
   expect(result.state.template).toEqual({
     id: "dialogue_ots_a_to_b",
-    version: 2,
+    version: 3,
     reviewStatus: "engineering_ready",
   });
   // The adjusted current camera — NOT the template default, NOT a preview pose.
   expectVecCloseTo(result.state.camera.position, CLOSER_POSITION);
   expectVecCloseTo(result.state.camera.target, OTS_A_TO_B.camera.target);
-  expect(result.state.camera.focalLengthMm).toBe(75); // OTS v2 default (D025)
+  expect(result.state.camera.focalLengthMm).toBe(75); // OTS v3 default (D025/D029)
   expect(result.state.aspectRatio).toBe("16:9");
   // Start/end poses come from the template movement, untouched by the edit.
   expectVecCloseTo(result.state.movement.start.position, OTS_A_TO_B.start.position);
@@ -398,18 +398,18 @@ test("P1-1 regression: a target-only edit exports the re-aimed composition, not 
   test.setTimeout(120_000);
   await page.goto("/");
   await page.getByTestId("select-template-dialogue_ots_a_to_b").click();
-  // Advanced refinement: move ONLY the current camera target x 0.8 -> -0.8.
+  // Advanced refinement: move ONLY the current camera target x 0.85 -> -0.8.
   await page.getByTestId("advanced-refinement").locator("summary").click();
   await page.getByTestId("input-camera-target-x").fill("-0.8");
-  await expect(page.getByTestId("footer-camera")).toContainText("→ [-0.80, 1.55, 0.00]");
-  await expect(page.getByTestId("footer-camera")).toContainText("camera [-1.25, 1.70, 2.00]");
+  await expect(page.getByTestId("footer-camera")).toContainText("→ [-0.80, 1.55, -0.20]");
+  await expect(page.getByTestId("footer-camera")).toContainText("camera [-2.15, 1.45, 0.80]");
 
   const result = await exportAndRead(page, "target-only-fixed.zip");
 
   // The state carries the edit on the CURRENT camera only; movement.start
-  // still aims at +0.8 with identical position and focal length.
+  // still aims at the template target with identical position and focal length.
   expectVecCloseTo(result.state.camera.position, OTS_A_TO_B.camera.position);
-  expectVecCloseTo(result.state.camera.target, [-0.8, 1.55, 0]);
+  expectVecCloseTo(result.state.camera.target, [-0.8, 1.55, -0.2]);
   expect(result.state.camera.focalLengthMm).toBe(75);
   expectVecCloseTo(result.state.movement.start.position, OTS_A_TO_B.start.position);
   expectVecCloseTo(result.state.movement.start.target, OTS_A_TO_B.start.target);

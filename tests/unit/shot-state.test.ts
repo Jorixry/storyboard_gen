@@ -86,13 +86,13 @@ describe("createShotStateFromTemplate", () => {
     expect(state.semantics).toEqual(template.promptSemantics);
   });
 
-  it("applies the initiator-confirmed 75mm OTS focal (D025) to both OTS templates at v2", async () => {
+  it("applies the initiator-confirmed 75mm OTS focal (D025) to both OTS templates at v3", async () => {
     const templates = await loadRealTemplates();
     for (const id of ["dialogue_ots_a_to_b", "dialogue_ots_b_to_a"]) {
       const template = templates.find((candidate) => candidate.id === id);
       const state = createShotStateFromTemplate(template!);
-      expect(template?.version).toBe(2);
-      expect(state.template.version).toBe(2);
+      expect(template?.version).toBe(3);
+      expect(state.template.version).toBe(3);
       expect(state.camera.focalLengthMm).toBe(75);
       expect(state.movement.start.focalLengthMm).toBe(75);
       expect(state.movement.end.focalLengthMm).toBe(75);
@@ -125,10 +125,10 @@ describe("createShotStateFromTemplate", () => {
     first.semantics.optics.push("mutated");
 
     expect(template.characters[0].position[0]).toBe(-0.8);
-    expect(template.movement.start.position[0]).toBe(-1.25);
+    expect(template.movement.start.position[0]).toBe(-2.15);
     expect(template.promptSemantics.optics).not.toContain("mutated");
     expect(second.characters[0].position[0]).toBe(-0.8);
-    expect(second.movement.start.position[0]).toBe(-1.25);
+    expect(second.movement.start.position[0]).toBe(-2.15);
     expect(second.semantics.optics).not.toContain("mutated");
   });
 });

@@ -149,7 +149,7 @@ describe("GenericVideoPromptAdapter metadata and determinism", () => {
       shotStateId: FIXED_ID,
       shotStateSchemaVersion: 1,
       templateId: "dialogue_ots_b_to_a",
-      templateVersion: 2, // OTS bumped to v2 by the D025 75mm change
+      templateVersion: 3, // OTS bumped to v3 by the D029 camera reposition
       templateReviewStatus: "engineering_ready",
     });
   });
@@ -216,7 +216,7 @@ describe("GenericVideoPromptAdapter metadata and determinism", () => {
 describe("GenericVideoPromptAdapter fact reflection", () => {
   it("reflects camera position, target, focal, character placement, yaw and aspect edits", async () => {
     let state = await stateFromTemplate("dialogue_ots_a_to_b");
-    state = makeCloser(state); // [-0.84, 1.67, 1.6] for this template (20% toward target)
+    state = makeCloser(state); // [-1.55, 1.47, 0.6] for this template (20% toward target)
     state = setCameraTarget(state, [0.6, 1.55, 0]);
     state = setCameraFocalLength(state, 85);
     state = setCharacterPosition(state, "character_b", [0.6, 0, 0.2]);
@@ -225,7 +225,9 @@ describe("GenericVideoPromptAdapter fact reflection", () => {
 
     const result = await compileState(state);
     // Full state precision: makeCloser's exact lerp result, unrounded.
-    expect(result.prompt).toContain("camera.current: position=[-0.8400000000000001, 1.67, 1.6]");
+    expect(result.prompt).toContain(
+      "camera.current: position=[-1.5499999999999998, 1.47, 0.6000000000000001]",
+    );
     expect(result.prompt).toContain("target=[0.6, 1.55, 0]");
     expect(result.prompt).toContain("focal=85mm");
     expect(result.prompt).toContain("character_b position=[0.6, 0, 0.2]");
@@ -236,12 +238,14 @@ describe("GenericVideoPromptAdapter fact reflection", () => {
   it("keeps the current camera, movement start and movement end as three distinct facts", async () => {
     const edited = makeCloser(await stateFromTemplate("dialogue_ots_a_to_b"));
     const result = await compileState(edited);
-    expect(result.prompt).toContain("camera.current: position=[-0.8400000000000001, 1.67, 1.6]");
-    expect(result.prompt).toContain("movement.start: position=[-1.25, 1.7, 2]");
-    expect(result.prompt).toContain("movement.end: position=[-1.05, 1.68, 1.4]");
+    expect(result.prompt).toContain(
+      "camera.current: position=[-1.5499999999999998, 1.47, 0.6000000000000001]",
+    );
+    expect(result.prompt).toContain("movement.start: position=[-2.15, 1.45, 0.8]");
+    expect(result.prompt).toContain("movement.end: position=[-1.95, 1.43, 0.2]");
     // None of the movement poses was clobbered by the current-pose edit.
     expect(result.prompt).not.toContain(
-      "movement.start: position=[-0.8400000000000001, 1.67, 1.6]",
+      "movement.start: position=[-1.5499999999999998, 1.47, 0.6000000000000001]",
     );
   });
 

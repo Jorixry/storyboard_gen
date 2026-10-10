@@ -31,8 +31,8 @@ describe("projectShotStateToStage — shot camera comes from ShotState", () => {
   it("copies camera position, target and focal length verbatim from the state", async () => {
     const state = await otsAToBState();
     const stage = projectShotStateToStage(state);
-    expect(stage.shotCamera.position).toEqual([-1.25, 1.7, 2]);
-    expect(stage.shotCamera.target).toEqual([0.8, 1.55, 0]);
+    expect(stage.shotCamera.position).toEqual([-2.15, 1.45, 0.8]);
+    expect(stage.shotCamera.target).toEqual([0.85, 1.55, -0.2]);
     expect(stage.shotCamera.focalLengthMm).toBe(75);
   });
 
@@ -108,11 +108,11 @@ describe("projectShotStateToStage — movement data preserved without tweening",
     expect(stage.movement.type).toBe("dolly_in");
     expect(stage.movement.durationSeconds).toBe(4);
     expect(stage.movement.easing).toBe("ease_in_out");
-    expect(stage.movement.start.position).toEqual([-1.25, 1.7, 2]);
-    expect(stage.movement.start.target).toEqual([0.8, 1.55, 0]);
+    expect(stage.movement.start.position).toEqual([-2.15, 1.45, 0.8]);
+    expect(stage.movement.start.target).toEqual([0.85, 1.55, -0.2]);
     expect(stage.movement.start.focalLengthMm).toBe(75);
-    expect(stage.movement.end.position).toEqual([-1.05, 1.68, 1.4]);
-    expect(stage.movement.end.target).toEqual([0.8, 1.55, 0]);
+    expect(stage.movement.end.position).toEqual([-1.95, 1.43, 0.2]);
+    expect(stage.movement.end.target).toEqual([0.85, 1.55, -0.2]);
     expect(stage.movement.end.focalLengthMm).toBe(75);
   });
 

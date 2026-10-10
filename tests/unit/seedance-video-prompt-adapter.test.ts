@@ -163,7 +163,7 @@ describe("SeedanceVideoPromptAdapter determinism and purity", () => {
       shotStateId: FIXED_ID,
       shotStateSchemaVersion: 1,
       templateId: "dialogue_ots_b_to_a",
-      templateVersion: 2,
+      templateVersion: 3,
       templateReviewStatus: "engineering_ready",
     });
   });

@@ -64,9 +64,9 @@ describe("makeCloser / makeFarther — derived from the CURRENT camera/target ge
     const state = await stateFrom("dialogue_ots_a_to_b");
     const next = makeCloser(state);
     // position + 0.2 * (target - position), componentwise.
-    expect(next.camera.position[0]).toBeCloseTo(-1.25 + 0.2 * 2.05, 12);
-    expect(next.camera.position[1]).toBeCloseTo(1.7 + 0.2 * -0.15, 12);
-    expect(next.camera.position[2]).toBeCloseTo(2 + 0.2 * -2, 12);
+    expect(next.camera.position[0]).toBeCloseTo(-2.15 + 0.2 * 3.0, 12);
+    expect(next.camera.position[1]).toBeCloseTo(1.45 + 0.2 * 0.1, 12);
+    expect(next.camera.position[2]).toBeCloseTo(0.8 + 0.2 * -1, 12);
     expect(next.camera.target).toEqual(state.camera.target);
     expect(distance(next)).toBeCloseTo(distance(state) * 0.8, 12);
   });
@@ -106,7 +106,7 @@ describe("makeCloser / makeFarther — derived from the CURRENT camera/target ge
 
   it("never lets a closer step cross the minimum camera-target distance", async () => {
     const base = await stateFrom("dialogue_ots_a_to_b");
-    const tiny = withPose(base, [-1.24, 1.698, 1.96], [0.8, 1.55, 0]); // ~0.36 m from target
+    const tiny = withPose(base, [0.51, 1.552, -0.09], [0.85, 1.55, -0.2]); // ~0.36 m from target
     const target = tiny.camera.target;
     const next = makeCloser(tiny);
     const d = Math.hypot(
@@ -119,7 +119,7 @@ describe("makeCloser / makeFarther — derived from the CURRENT camera/target ge
 
   it("refuses to operate on an already-degenerate camera pose", async () => {
     const base = await stateFrom("dialogue_ots_a_to_b");
-    const degenerate = withPose(base, [0.8, 1.55, 0.05], [0.8, 1.55, 0]); // 0.05 m apart
+    const degenerate = withPose(base, [0.85, 1.55, -0.15], [0.85, 1.55, -0.2]); // 0.05 m apart
     expect(() => makeCloser(degenerate)).toThrow(DegenerateCameraGeometryError);
     expect(() => makeFarther(degenerate)).toThrow(DegenerateCameraGeometryError);
   });
@@ -148,7 +148,7 @@ describe("emphasizeCharacter — driven by the CURRENT character transforms", ()
   });
 
   it("is idempotent when the target already sits over the character (OTS A→B, B primary)", async () => {
-    const state = await stateFrom("dialogue_ots_a_to_b");
+    const state = setCameraTarget(await stateFrom("dialogue_ots_a_to_b"), [0.8, 1.55, 0]);
     const next = emphasizeCharacter(state, "character_b");
     expect(next.camera.target).toEqual(state.camera.target);
   });
@@ -156,7 +156,7 @@ describe("emphasizeCharacter — driven by the CURRENT character transforms", ()
   it("re-aims the OTS A→B target toward A when A is emphasized", async () => {
     const state = await stateFrom("dialogue_ots_a_to_b");
     const next = emphasizeCharacter(state, "character_a");
-    expect(next.camera.target[0]).toBeCloseTo(0, 12); // 0.8 -> halfway to -0.8
+    expect(next.camera.target[0]).toBeCloseTo(0.025, 12); // 0.85 -> halfway to -0.8
     expect(next.camera.target[1]).toBeCloseTo(1.55, 12);
   });
 });
@@ -215,13 +215,15 @@ describe("constrained direct transforms", () => {
   });
 
   it("rejects a camera position that degenerates toward the target", async () => {
-    const state = await stateFrom("dialogue_ots_a_to_b"); // target [0.8,1.55,0]
-    expect(() => setCameraPosition(state, [0.85, 1.56, 0])).toThrow(DegenerateCameraGeometryError);
+    const state = await stateFrom("dialogue_ots_a_to_b"); // target [0.85,1.55,-0.2]
+    expect(() => setCameraPosition(state, [0.85, 1.56, -0.2])).toThrow(
+      DegenerateCameraGeometryError,
+    );
   });
 
   it("rejects a target that degenerates toward the camera position", async () => {
-    const state = await stateFrom("dialogue_ots_a_to_b"); // position [-1.25,1.7,2]
-    expect(() => setCameraTarget(state, [-1.24, 1.7, 2])).toThrow(DegenerateCameraGeometryError);
+    const state = await stateFrom("dialogue_ots_a_to_b"); // position [-2.15,1.45,0.8]
+    expect(() => setCameraTarget(state, [-2.14, 1.45, 0.8])).toThrow(DegenerateCameraGeometryError);
   });
 
   it("rejects non-finite vectors", async () => {
@@ -378,7 +380,7 @@ describe("focal commands synchronize the canonical focal semantics (no contradic
   });
 
   it("setCameraFocalLength keeps optics consistent for arbitrary clamped values", async () => {
-    const state = await stateFrom("dialogue_ots_a_to_b"); // 50mm
+    const state = await stateFrom("dialogue_ots_a_to_b"); // 75mm
     expect(setCameraFocalLength(state, 85).semantics.optics).toContain("focal_85mm");
     expect(setCameraFocalLength(state, 62.5).semantics.optics).toContain("focal_62.5mm");
     // The clamp happens BEFORE the token sync: 500 -> 200 -> focal_200mm.
@@ -389,7 +391,7 @@ describe("focal commands synchronize the canonical focal semantics (no contradic
   });
 
   it("is idempotent: re-applying the same focal length neither duplicates nor reorders", async () => {
-    const state = await stateFrom("dialogue_ots_a_to_b"); // v2 template default: 75mm
+    const state = await stateFrom("dialogue_ots_a_to_b"); // v3 template default: 75mm
     const once = setCameraFocalLength(state, 75);
     expect(once.semantics.optics).toEqual(state.semantics.optics);
     expect(once.semantics.optics.filter((t) => t.startsWith("focal_"))).toHaveLength(1);

@@ -25,7 +25,7 @@ interface StageSnapshot {
 }
 
 /** Independently derived FOV constants (2*atan(verticalGate/(2*f)) in degrees). */
-// Template-default FOVs (OTS v2 executes at 75mm per D025).
+// Template-default FOVs (OTS v3 executes at 75mm per D025).
 const VFOV_75MM_169 = 15.376895539805746; // 2*atan(20.25/150), 16:9 gate
 // Focal-feel PRESET FOV (portrait preset = 50mm; engineering presets are
 // independent of template defaults).
@@ -33,7 +33,7 @@ const VFOV_50MM_169 = 22.895192527371208;
 const VFOV_75MM_916 = 26.991466561591626; // 2*atan(36/150), 9:16 gate
 
 /** Canonical template camera values (from the committed template YAML). */
-const OTS_A_TO_B_CAMERA: [number, number, number] = [-1.25, 1.7, 2];
+const OTS_A_TO_B_CAMERA: [number, number, number] = [-2.15, 1.45, 0.8];
 const MEDIUM_CAMERA: [number, number, number] = [0, 1.6, 3.4];
 
 const SESSION_KEY = "storyboard-director.session.v1";
@@ -118,8 +118,8 @@ test("gallery shows the three clearly labeled development templates", async ({ p
     await expect(card.getByTestId("template-review-status")).toHaveText(
       "engineering_ready · not director approved",
     );
-    // OTS templates are v2 since the D025 75mm change; the medium shot stays v1.
-    const expectedVersions = [1, 2, 2];
+    // OTS templates are v3 since the D029 camera reposition; the medium shot stays v1.
+    const expectedVersions = [1, 3, 3];
     await expect(card.getByTestId("template-meta")).toContainText(
       `${expectedIds[index]} v${expectedVersions[index]}`,
     );
@@ -164,7 +164,7 @@ test("selecting a different template updates ShotState metadata and the camera p
 
   // Re-selecting a DIFFERENT template must drive the same stage immediately.
   await selectTemplate(page, "dialogue_ots_a_to_b");
-  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v2");
+  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v3");
   snapshot = await waitForSnapshot(
     page,
     (s) => s.view === "camera" && positionEquals(s.activeCamera.position, OTS_A_TO_B_CAMERA),
@@ -299,7 +299,7 @@ test("constrained transforms update the canonical ShotState and the 3D preview",
   // The advanced panel is collapsed; expand it first.
   await page.getByTestId("advanced-refinement").locator("summary").click();
   await expect(posX).toBeVisible();
-  await expect(posX).toHaveValue("-1.25");
+  await expect(posX).toHaveValue("-2.15");
 
   // Every constrained input displays its unit and its exact numeric range
   // (the same values the commands clamp to).
@@ -379,7 +379,7 @@ test("reset restores the template values while keeping the session ShotState ID"
     true,
   );
   await expect(page.getByTestId("footer-camera")).toContainText(
-    "camera [-1.25, 1.70, 2.00] → [0.80, 1.55, 0.00] · 75mm",
+    "camera [-2.15, 1.45, 0.80] → [0.85, 1.55, -0.20] · 75mm",
   );
   await expect(page.getByTestId("footer-camera")).toContainText("16:9");
   await expect(page.getByTestId("footer-shot-state")).toHaveText(idBefore ?? "");
@@ -401,7 +401,7 @@ test("a page refresh restores the same session and ShotState ID", async ({ page 
   await page.reload();
   await expect(page.getByTestId("studio-workspace")).toBeVisible();
   await expect(page.getByTestId("footer-shot-state")).toHaveText(idBefore ?? "");
-  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v2");
+  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v3");
   // Edited values survive the round trip, not just the template defaults.
   await expect(page.getByTestId("footer-camera")).toContainText("50mm");
   await expect(page.getByTestId("footer-camera")).toContainText("9:16");
@@ -438,9 +438,9 @@ test("a disabled localStorage keeps the studio usable and reports unavailability
     "本地保存不可用；编辑仅保留在当前页面",
   );
   // Editing continues purely in memory (makeCloser moves the camera from
-  // z=2.00 to z=1.60).
+  // z=0.80 to z=0.60).
   await page.getByTestId("control-closer").click();
-  await expect(page.getByTestId("footer-camera")).toContainText("1.60]");
+  await expect(page.getByTestId("footer-camera")).toContainText("0.60]");
 });
 
 test("a failing session write keeps editing alive and reports write_failed", async ({ page }) => {
@@ -463,7 +463,7 @@ test("a failing session write keeps editing alive and reports write_failed", asy
     "本地保存失败；编辑仍保留在当前页面",
   );
   await page.getByTestId("control-closer").click();
-  await expect(page.getByTestId("footer-camera")).toContainText("1.60]");
+  await expect(page.getByTestId("footer-camera")).toContainText("0.60]");
 });
 
 test("no hydration warnings across load, edit and reload", async ({ page }) => {
