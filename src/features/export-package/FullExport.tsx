@@ -8,9 +8,10 @@
  * uses, compiles BOTH prompts (Prompt 6 generic + the Seedance target-model
  * adapter) from that same frozen state, attaches the current enhanced first
  * frame when one exists (full-state fingerprint decides staleness), and
- * assembles the 7-or-8-file ZIP through buildFullExportPackage — whose
+ * assembles the 8-or-9-file ZIP through buildFullExportPackage — whose
  * executable same-source verification refuses any artifact that does not
- * point at this exact state/template versions.
+ * point at this exact state/template versions, and whose template-diff.txt
+ * summarizes the field-level deviations from the template defaults.
  *
  * Boundary rules mirror the raw export: everything lives in local state
  * during one export; the canonical store is never touched; prompts are
@@ -28,7 +29,7 @@ import {
   SEEDANCE_VIDEO_ADAPTER_ID,
   SeedanceVideoPromptAdapter,
 } from "@/adapters/video-prompts/seedance";
-import { COMPILED_ADAPTER_CONFIGS } from "@/content/compiled-content";
+import { COMPILED_ADAPTER_CONFIGS, COMPILED_SHOT_TEMPLATES } from "@/content/compiled-content";
 import { shotStateFingerprint, shotStateSchema, type ShotState } from "@/domain/shot-state";
 import { compileVideoPrompt } from "@/features/prompt-compiler/compile";
 import { appShotStore } from "@/state/app-shot-store";
@@ -88,6 +89,18 @@ export function FullExport() {
     setStatus(PHASE_COPY.capturing);
   };
 
+  function templateFor(state: ShotState) {
+    const template = COMPILED_SHOT_TEMPLATES.find(
+      (t) => t.id === state.template.id && t.version === state.template.version,
+    );
+    if (template === undefined) {
+      throw new Error(
+        `diff 基线模板缺失：${state.template.id}@v${state.template.version} 不在当前内容中，导出被拒绝`,
+      );
+    }
+    return template;
+  }
+
   /** Enhanced-frame inclusion: only a fingerprint-current result ships. */
   const resolveEnhanced = (
     snapshotState: ShotState,
@@ -119,6 +132,7 @@ export function FullExport() {
       ]);
       const pkg = await buildFullExportPackage({
         shotState: snapshotState,
+        template: templateFor(snapshotState),
         images,
         prompts: { generic: genericPrompt, target: targetPrompt },
         enhancedFrame: resolveEnhanced(snapshotState),
@@ -160,8 +174,9 @@ export function FullExport() {
       <p className="control-hint">
         完整 ZIP 包含：shot-state.json、composition-raw.png、movement-start.png、
         movement-end.png、prompt-generic.txt（模型无关）、prompt-seedance.txt（目标模型工程推导稿，
-        不声称官方支持），以及当前有效的增强首帧（若无或已过期则跳过并在 manifest
-        记录原因）；manifest 校验所有工件同源。raw ZIP 仍可单独导出。
+        不声称官方支持）、template-diff.txt（相对模板默认值的逐字段改动摘要），以及当前有效的增强首帧
+        （若无或已过期则跳过并在 manifest 记录原因）；manifest 校验所有工件同源。raw ZIP
+        仍可单独导出。
       </p>
       <div className="control-group">
         <button

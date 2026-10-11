@@ -15,13 +15,14 @@
  * whose full-state fingerprint no longer matches is excluded with reason
  * "stale" instead of shipping a frame that no longer describes this state.
  *
- * Archive layout (exactly seven or eight files, in this order):
+ * Archive layout (exactly eight or nine files, in this order):
  *   shot-state.json, composition-raw.png, movement-start.png,
  *   movement-end.png, prompt-generic.txt, prompt-seedance.txt,
- *   [enhanced-first-frame.<ext>], manifest.json
+ *   template-diff.txt, [enhanced-first-frame.<ext>], manifest.json
  */
 import { buildStoreZip, type ZipEntry } from "@/features/export-package/zip-store";
 import type { CompiledPrompt } from "@/adapters/video-prompts/types";
+import type { ShotTemplate } from "@/domain/shot-template";
 import {
   enhancedFirstFrameFileName,
   FULL_EXPORT_FILENAMES,
@@ -31,6 +32,8 @@ import {
   type FullExportManifest,
 } from "@/domain/artifacts";
 import { shotStateFingerprint, shotStateSchema, type ShotState } from "@/domain/shot-state";
+
+import { buildTemplateDiff } from "./template-diff";
 
 /** The three raw rasters, captured exactly like the Prompt 5 raw export. */
 export interface FullExportImages {
@@ -52,6 +55,8 @@ export interface FullExportEnhancedFrame {
 
 export interface FullExportPackageInput {
   shotState: ShotState;
+  /** Diff baseline: the template this state was created from (id@version must match). */
+  template: ShotTemplate;
   images: FullExportImages;
   prompts: {
     generic: CompiledPrompt;
@@ -116,6 +121,17 @@ export async function buildFullExportPackage(
   const frozen = shotStateSchema.parse(input.shotState);
   verifyPromptSource("generic", input.prompts.generic, frozen);
   verifyPromptSource("target", input.prompts.target, frozen);
+  // The diff baseline must be the exact template the state carries; a
+  // mismatched baseline would diff against the wrong defaults.
+  if (
+    input.template.id !== frozen.template.id ||
+    input.template.version !== frozen.template.version
+  ) {
+    throw new Error(
+      `template-diff refused: the state carries ${frozen.template.id}@v${frozen.template.version} ` +
+        `but the provided baseline is ${input.template.id}@v${input.template.version}`,
+    );
+  }
 
   const currentFingerprint = shotStateFingerprint(frozen);
   const offered = "reason" in input.enhancedFrame ? null : input.enhancedFrame;
@@ -139,6 +155,10 @@ export async function buildFullExportPackage(
     FULL_EXPORT_FILENAMES.promptTarget,
     new TextEncoder().encode(input.prompts.target.prompt),
   );
+  artifacts.set(
+    FULL_EXPORT_FILENAMES.templateDiff,
+    new TextEncoder().encode(buildTemplateDiff(frozen, input.template)),
+  );
   if (includedFrame !== null) {
     artifacts.set(enhancedFirstFrameFileName(includedFrame.mimeType), includedFrame.bytes);
   }
@@ -154,7 +174,7 @@ export async function buildFullExportPackage(
 
   const candidate: FullExportManifest = {
     kind: "storyboard-director-full-export",
-    manifestVersion: 2,
+    manifestVersion: 3,
     generatedAt: input.generatedAt.toISOString(),
     shotState: {
       id: frozen.id,

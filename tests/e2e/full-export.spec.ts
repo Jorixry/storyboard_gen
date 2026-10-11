@@ -119,6 +119,7 @@ test("onboarding steps show before selection; full export without a frame record
       "prompt-generic.txt",
       "prompt-seedance.txt",
       "shot-state.json",
+      "template-diff.txt",
     ].sort(),
   );
   expect(manifest.enhancedFrame).toEqual({ included: false, reason: "absent" });
@@ -126,6 +127,8 @@ test("onboarding steps show before selection; full export without a frame record
   expect(manifest.shotState.template.id).toBe("dialogue_medium_two_shot");
   expect(manifest.prompts.generic.adapterId).toBe("generic_video");
   expect(manifest.prompts.target.adapterId).toBe("seedance_video");
+  // Unedited state -> the explicit no-deviations marker.
+  expect(entries.get("template-diff.txt")!.toString("utf8")).toContain("no deviations");
 
   for (const file of manifest.files) {
     const bytes = entries.get(file.name)!;
@@ -147,6 +150,11 @@ test("a current mock enhanced frame ships in the package with full provenance", 
   });
 
   await selectFirstTemplate(page);
+  // One in-range edit BEFORE generating the frame (the frame then describes
+  // the edited state and stays current): template-diff.txt must carry it.
+  await page.getByTestId("advanced-refinement").locator("summary").click();
+  await page.getByTestId("input-camera-focal-length").fill("50");
+  await expect(page.getByTestId("footer-camera")).toContainText("50mm");
   await page.getByTestId("enhanced-frame").locator("summary").click();
   await page.getByTestId("generate-enhanced-frame").click();
   await expect(page.getByTestId("enhanced-frame-image")).toBeVisible({ timeout: 20_000 });
@@ -156,6 +164,7 @@ test("a current mock enhanced frame ships in the package with full provenance", 
     "with-frame.zip",
   );
 
+  expect(manifest.manifestVersion).toBe(3);
   expect(manifest.enhancedFrame.included).toBe(true);
   if (!manifest.enhancedFrame.included) {
     throw new Error("expected the enhanced frame to be included");
@@ -166,6 +175,11 @@ test("a current mock enhanced frame ships in the package with full provenance", 
   });
   expect(manifest.enhancedFrame.adapter).toMatchObject({ adapterId: "mock-image-generation" });
   expect(entries.get("enhanced-first-frame.svg")!.toString("utf8")).toContain("<svg");
+  // The v3 diff artifact rides along and names the edit vs the template
+  // defaults (medium v2 default focal is 35mm).
+  const diff = entries.get("template-diff.txt")!.toString("utf8");
+  expect(diff).toContain("template=dialogue_medium_two_shot@v2");
+  expect(diff).toContain("camera.focalLengthMm: 35 -> 50");
   // Every hashed entry (the frame included) matches its manifest record.
   for (const file of manifest.files) {
     const bytes = entries.get(file.name)!;

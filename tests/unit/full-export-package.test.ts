@@ -14,6 +14,10 @@ import {
   fullExportFileName,
   type FullExportEnhancedFrame,
 } from "../../src/features/export-package/full-export-package";
+import {
+  buildTemplateDiff,
+  TEMPLATE_DIFF_NO_DEVIATIONS,
+} from "../../src/features/export-package/template-diff";
 import { readStoreZip } from "../helpers/zip-reader";
 import { loadRealContent } from "../helpers/content-test-utils";
 
@@ -39,10 +43,14 @@ async function realAdapters() {
   };
 }
 
-async function frozenState(): Promise<ShotState> {
+async function otsTemplate() {
   const { templates } = await loadRealContent();
   const template = templates.find((t) => t.id === "dialogue_ots_a_to_b")!;
-  return createShotStateFromTemplate(template, { generateId: () => FIXED_ID });
+  return template;
+}
+
+async function frozenState(): Promise<ShotState> {
+  return createShotStateFromTemplate(await otsTemplate(), { generateId: () => FIXED_ID });
 }
 
 async function compilePrompts(state: ShotState) {
@@ -79,10 +87,11 @@ function enhancedFrom(state: ShotState): FullExportEnhancedFrame {
 const GENERATED_AT = new Date("2026-10-08T12:00:00.000Z");
 
 describe("buildFullExportPackage happy paths", () => {
-  it("bundles seven files plus the enhanced frame and a schema-valid v2 manifest", async () => {
+  it("bundles eight files plus the enhanced frame and a schema-valid v3 manifest", async () => {
     const state = await frozenState();
     const pkg = await buildFullExportPackage({
       shotState: state,
+      template: await otsTemplate(),
       images: images(),
       prompts: await compilePrompts(state),
       enhancedFrame: enhancedFrom(state),
@@ -91,7 +100,7 @@ describe("buildFullExportPackage happy paths", () => {
 
     expect(pkg.fileName).toBe(fullExportFileName(FIXED_ID));
     expect(pkg.manifest.kind).toBe("storyboard-director-full-export");
-    expect(pkg.manifest.manifestVersion).toBe(2);
+    expect(pkg.manifest.manifestVersion).toBe(3);
     expect(pkg.manifest.enhancedFrame).toMatchObject({
       included: true,
       fileName: "enhanced-first-frame.svg",
@@ -114,6 +123,7 @@ describe("buildFullExportPackage happy paths", () => {
         "prompt-generic.txt",
         "prompt-seedance.txt",
         "shot-state.json",
+        "template-diff.txt",
       ].sort(),
     );
 
@@ -134,6 +144,7 @@ describe("buildFullExportPackage happy paths", () => {
         "prompt-generic.txt",
         "prompt-seedance.txt",
         "shot-state.json",
+        "template-diff.txt",
       ].sort(),
     );
     for (const file of pkg.manifest.files) {
@@ -149,6 +160,42 @@ describe("buildFullExportPackage happy paths", () => {
     expect(new TextDecoder().decode(entries.get("prompt-seedance.txt")!)).toBe(
       prompts.target.prompt,
     );
+    // An unedited state ships the explicit no-deviations marker.
+    expect(new TextDecoder().decode(entries.get("template-diff.txt")!)).toBe(
+      [
+        "template-diff: field-level deviations from the template defaults",
+        `source: shot-state=${FIXED_ID} template=dialogue_ots_a_to_b@v3 review-status=approved`,
+        TEMPLATE_DIFF_NO_DEVIATIONS,
+      ].join("\n"),
+    );
+  });
+
+  it("an edited state ships its field-level deviations in template-diff.txt", async () => {
+    const state = await frozenState();
+    const edited = JSON.parse(JSON.stringify(state)) as ShotState;
+    edited.camera = { ...edited.camera, focalLengthMm: 85 };
+    edited.characters = edited.characters.map((c) =>
+      c.id === "character_b" ? { ...c, position: [0.6, 0, 0.2] } : c,
+    );
+    const pkg = await buildFullExportPackage({
+      shotState: edited,
+      template: await otsTemplate(),
+      images: images(),
+      prompts: await compilePrompts(edited),
+      enhancedFrame: { reason: "absent" },
+      generatedAt: GENERATED_AT,
+    });
+    const entries = new Map(
+      readStoreZip(Buffer.from(pkg.zip)).map((entry) => [entry.name, entry.data]),
+    );
+    const diff = new TextDecoder().decode(entries.get("template-diff.txt")!);
+    expect(diff).toContain("camera.focalLengthMm: 75 -> 85");
+    expect(diff).toContain("characters.character_b.position: [0.8,0,0] -> [0.6,0,0.2]");
+    // Untouched fields do not appear.
+    expect(diff).not.toContain("camera.position");
+    expect(diff).not.toContain("movement.");
+    expect(diff).not.toContain("semantics.");
+    expect(diff).not.toContain(TEMPLATE_DIFF_NO_DEVIATIONS);
   });
 
   it("records absent/stale enhanced frames instead of shipping them", async () => {
@@ -157,6 +204,7 @@ describe("buildFullExportPackage happy paths", () => {
 
     const absent = await buildFullExportPackage({
       shotState: state,
+      template: await otsTemplate(),
       images: images(),
       prompts,
       enhancedFrame: { reason: "absent" },
@@ -174,6 +222,7 @@ describe("buildFullExportPackage happy paths", () => {
     edited.camera = { ...edited.camera, focalLengthMm: 85 };
     const stale = await buildFullExportPackage({
       shotState: state,
+      template: await otsTemplate(),
       images: images(),
       prompts,
       enhancedFrame: { ...staleOffer, sourceFingerprint: shotStateFingerprint(edited) },
@@ -187,6 +236,7 @@ describe("buildFullExportPackage happy paths", () => {
     const prompts = await compilePrompts(state);
     const first = await buildFullExportPackage({
       shotState: state,
+      template: await otsTemplate(),
       images: images(),
       prompts,
       enhancedFrame: enhancedFrom(state),
@@ -194,6 +244,7 @@ describe("buildFullExportPackage happy paths", () => {
     });
     const second = await buildFullExportPackage({
       shotState: state,
+      template: await otsTemplate(),
       images: images(),
       prompts: await compilePrompts(state),
       enhancedFrame: enhancedFrom(state),
@@ -213,6 +264,7 @@ describe("buildFullExportPackage same-source verification", () => {
     await expect(
       buildFullExportPackage({
         shotState: state,
+        template: await otsTemplate(),
         images: images(),
         prompts: wrongPrompts,
         enhancedFrame: { reason: "absent" },
@@ -234,12 +286,51 @@ describe("buildFullExportPackage same-source verification", () => {
     await expect(
       buildFullExportPackage({
         shotState: state,
+        template: await otsTemplate(),
         images: images(),
         prompts: mismatchedTemplate,
         enhancedFrame: { reason: "absent" },
         generatedAt: GENERATED_AT,
       }),
     ).rejects.toThrow(/target prompt was not compiled from this frozen ShotState/);
+  });
+
+  it("REFUSES the package when the diff baseline template does not match the state", async () => {
+    const state = await frozenState();
+    const prompts = await compilePrompts(state);
+    const wrongBaseline = { ...(await otsTemplate()), version: 99 };
+    await expect(
+      buildFullExportPackage({
+        shotState: state,
+        template: wrongBaseline,
+        images: images(),
+        prompts,
+        enhancedFrame: { reason: "absent" },
+        generatedAt: GENERATED_AT,
+      }),
+    ).rejects.toThrow(/template-diff refused/);
+  });
+});
+
+describe("buildTemplateDiff (the v3 diff artifact)", () => {
+  it("refuses a baseline that does not match the state's template id@version", async () => {
+    const state = await frozenState();
+    const wrongVersion = { ...(await otsTemplate()), version: 99 };
+    expect(() => buildTemplateDiff(state, wrongVersion)).toThrow(/template-diff refused/);
+  });
+
+  it("lists aspect-ratio, movement and semantics deviations with stable paths", async () => {
+    const state = JSON.parse(JSON.stringify(await frozenState())) as ShotState;
+    state.aspectRatio = "9:16";
+    state.movement = { ...state.movement, durationSeconds: 6 };
+    state.semantics = { ...state.semantics, optics: ["medium_close_up", "focal_85mm"] };
+    const diff = buildTemplateDiff(state, await otsTemplate());
+    expect(diff).toContain('aspectRatio: "16:9" -> "9:16"');
+    expect(diff).toContain("movement.durationSeconds: 4 -> 6");
+    expect(diff).toContain(
+      'semantics.optics: ["medium_close_up","focal_75mm","soft_foreground"] -> ["medium_close_up","focal_85mm"]',
+    );
+    expect(diff).not.toContain(TEMPLATE_DIFF_NO_DEVIATIONS);
   });
 });
 

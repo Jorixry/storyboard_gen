@@ -141,13 +141,14 @@ export type RawExportManifest = z.infer<typeof rawExportManifestSchema>;
 /* Full export package (Prompt 8 / Phase 2 §2.3 + Phase 3 Day 9)             */
 /* ------------------------------------------------------------------------- */
 
-export const FULL_EXPORT_MANIFEST_VERSION = 2;
+export const FULL_EXPORT_MANIFEST_VERSION = 3;
 
 /**
  * Exact filenames inside the FULL input package (the MVP_SCOPE "Outputs"
- * bundle). Everything the raw export carries, plus both compiled prompts and
- * an optional enhanced first frame whose extension follows the artifact's
- * actual MIME type (mock results are SVG; provider results are raster).
+ * bundle). Everything the raw export carries, both compiled prompts, the
+ * field-level template diff (v3), and an optional enhanced first frame whose
+ * extension follows the artifact's actual MIME type (mock results are SVG;
+ * provider results are raster).
  */
 export const FULL_EXPORT_FILENAMES = {
   shotState: "shot-state.json",
@@ -156,6 +157,7 @@ export const FULL_EXPORT_FILENAMES = {
   movementEnd: "movement-end.png",
   promptGeneric: "prompt-generic.txt",
   promptTarget: "prompt-seedance.txt",
+  templateDiff: "template-diff.txt",
   enhancedFirstFrameBases: [
     "enhanced-first-frame.png",
     "enhanced-first-frame.svg",
@@ -173,6 +175,7 @@ export const FULL_EXPORT_ARTIFACT_NAMES = [
   "movement-end.png",
   "prompt-generic.txt",
   "prompt-seedance.txt",
+  "template-diff.txt",
   ...FULL_EXPORT_FILENAMES.enhancedFirstFrameBases,
 ] as const;
 
@@ -204,6 +207,7 @@ const fullManifestFilesSchema = z.array(fullManifestArtifactSchema).superRefine(
     "movement-end.png",
     "prompt-generic.txt",
     "prompt-seedance.txt",
+    "template-diff.txt",
   ];
   const names: string[] = files.map((file) => file.name);
   const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
@@ -237,7 +241,7 @@ const fullManifestFilesSchema = z.array(fullManifestArtifactSchema).superRefine(
       code: "custom",
       path: [],
       message:
-        `manifest files must be exactly the six required artifacts plus at most one enhanced ` +
+        `manifest files must be exactly the seven required artifacts plus at most one enhanced ` +
         `first frame; missing: ${missing.length > 0 ? missing.join(", ") : "none"}; ` +
         `unexpected: ${extra.length > 0 ? extra.join(", ") : "none"}`,
     });
