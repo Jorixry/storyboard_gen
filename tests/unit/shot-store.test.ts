@@ -90,19 +90,19 @@ describe("createShotStore — command actions", () => {
     const before = store.getState().shotState!;
     store.getState().makeCloser();
     const closer = store.getState().shotState!;
-    expect(closer.camera.position[2]).toBeCloseTo(2.72, 10);
+    expect(closer.camera.position[2]).toBeCloseTo(1.2, 10);
     expect(closer.camera.target).toEqual(before.camera.target);
     expect(closer.movement).toBe(before.movement);
 
     store.getState().makeFarther();
-    expect(store.getState().shotState!.camera.position[2]).toBeCloseTo(3.264, 10);
+    expect(store.getState().shotState!.camera.position[2]).toBeCloseTo(1.44, 10);
   });
 
   it("emphasize and focal feel write their typed fields", async () => {
     const { store } = await realStore();
     store.getState().selectTemplate("dialogue_medium_two_shot");
     store.getState().emphasizeCharacter("character_b");
-    expect(store.getState().shotState!.camera.target[0]).toBeCloseTo(0.4, 10);
+    expect(store.getState().shotState!.camera.target[0]).toBeCloseTo(0.25, 10);
 
     store.getState().setFocalFeel("portrait");
     expect(store.getState().shotState!.camera.focalLengthMm).toBe(50);
@@ -162,7 +162,7 @@ describe("createShotStore — command actions", () => {
     expect(store.getState().shotState).toBe(before);
 
     // Degenerate direct transform:
-    expect(() => store.getState().setCameraTarget([0.01, 1.6, 3.4])).toThrow(
+    expect(() => store.getState().setCameraTarget([0.01, 1.62, 1.5])).toThrow(
       DegenerateCameraGeometryError,
     );
     expect(store.getState().shotState).toBe(before);

@@ -75,8 +75,8 @@ describe("makeCloser / makeFarther — derived from the CURRENT camera/target ge
     const state = await stateFrom("dialogue_medium_two_shot");
     const next = makeFarther(state);
     expect(next.camera.position[0]).toBeCloseTo(0, 12);
-    expect(next.camera.position[1]).toBeCloseTo(1.6 + 0.2 * 0.05, 12);
-    expect(next.camera.position[2]).toBeCloseTo(3.4 + 0.2 * 3.4, 12);
+    expect(next.camera.position[1]).toBeCloseTo(1.62 + 0.2 * -0.06, 12);
+    expect(next.camera.position[2]).toBeCloseTo(1.5 + 0.2 * 1.5, 12);
     expect(distance(next)).toBeCloseTo(distance(state) * 1.2, 12);
   });
 
@@ -129,7 +129,7 @@ describe("emphasizeCharacter — driven by the CURRENT character transforms", ()
   it("blends the medium two-shot target halfway toward character A's live position", async () => {
     const state = await stateFrom("dialogue_medium_two_shot");
     const next = emphasizeCharacter(state, "character_a");
-    expect(next.camera.target[0]).toBeCloseTo(-0.4, 12); // 0 -> halfway to -0.8
+    expect(next.camera.target[0]).toBeCloseTo(-0.25, 12); // 0 -> halfway to -0.5
     expect(next.camera.target[1]).toBe(state.camera.target[1]); // height untouched
     expect(next.camera.target[2]).toBeCloseTo(0, 12);
   });
@@ -137,7 +137,7 @@ describe("emphasizeCharacter — driven by the CURRENT character transforms", ()
   it("blends toward character B symmetrically", async () => {
     const state = await stateFrom("dialogue_medium_two_shot");
     const next = emphasizeCharacter(state, "character_b");
-    expect(next.camera.target[0]).toBeCloseTo(0.4, 12);
+    expect(next.camera.target[0]).toBeCloseTo(0.25, 12);
   });
 
   it("follows a character that was moved first (no hardcoded template position)", async () => {
@@ -248,12 +248,12 @@ describe("constrained direct transforms", () => {
   });
 
   it("refuses positions that would overlap the two characters", async () => {
-    const state = await stateFrom("dialogue_medium_two_shot"); // A at -0.8
+    const state = await stateFrom("dialogue_medium_two_shot"); // A at -0.5 (v2 blocking)
     expect(() => setCharacterPosition(state, "character_b", [-0.5, 0, 0])).toThrow(
       CharacterOverlapError,
     );
     // Exactly the minimum separation is allowed.
-    expect(() => setCharacterPosition(state, "character_b", [-0.2, 0, 0])).not.toThrow();
+    expect(() => setCharacterPosition(state, "character_b", [0.1, 0, 0])).not.toThrow();
   });
 
   it("wraps yaw into [-180, 180]", async () => {

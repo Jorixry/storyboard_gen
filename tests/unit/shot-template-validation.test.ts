@@ -23,8 +23,9 @@ describe("real repository content", () => {
     const templates = await loadRealTemplates();
     const expectedVersions: Record<string, number> = {
       // OTS bumped to v3 by the D029 director camera reposition (v2 was the
-      // D025 focal change 50mm -> 75mm).
-      dialogue_medium_two_shot: 1,
+      // D025 focal change 50mm -> 75mm); medium bumped to v2 by the D030
+      // director chest-up reframe (tightened blocking, 35mm kept).
+      dialogue_medium_two_shot: 2,
       dialogue_ots_a_to_b: 3,
       dialogue_ots_b_to_a: 3,
     };

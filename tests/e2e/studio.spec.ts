@@ -34,7 +34,7 @@ const VFOV_75MM_916 = 26.991466561591626; // 2*atan(36/150), 9:16 gate
 
 /** Canonical template camera values (from the committed template YAML). */
 const OTS_A_TO_B_CAMERA: [number, number, number] = [-2.15, 1.45, 0.8];
-const MEDIUM_CAMERA: [number, number, number] = [0, 1.6, 3.4];
+const MEDIUM_CAMERA: [number, number, number] = [0, 1.62, 1.5];
 
 const SESSION_KEY = "storyboard-director.session.v1";
 
@@ -118,8 +118,9 @@ test("gallery shows the three clearly labeled development templates", async ({ p
     await expect(card.getByTestId("template-review-status")).toHaveText(
       "engineering_ready · not director approved",
     );
-    // OTS templates are v3 since the D029 camera reposition; the medium shot stays v1.
-    const expectedVersions = [1, 3, 3];
+    // Medium bumped to v2 by the D030 chest-up reframe; OTS templates are v3
+    // since the D029 camera reposition.
+    const expectedVersions = [2, 3, 3];
     await expect(card.getByTestId("template-meta")).toContainText(
       `${expectedIds[index]} v${expectedVersions[index]}`,
     );
@@ -154,7 +155,7 @@ test("selecting a different template updates ShotState metadata and the camera p
   await selectTemplate(page, "dialogue_medium_two_shot");
   await waitForReadyView(page, "director");
   await expect(page.getByTestId("footer-template")).toContainText(
-    "dialogue_medium_two_shot v1 · engineering_ready",
+    "dialogue_medium_two_shot v2 · engineering_ready",
   );
   await expect(page.getByTestId("footer-camera")).toContainText("35mm");
 
@@ -183,7 +184,7 @@ test("simple controls update the camera view immediately through canonical state
   expect(positionEquals(initial.activeCamera.position, MEDIUM_CAMERA)).toBe(true);
   const initialTargetDistance = Math.hypot(
     0 - initial.activeCamera.position[0],
-    1.55 - initial.activeCamera.position[1],
+    1.68 - initial.activeCamera.position[1],
     0 - initial.activeCamera.position[2],
   );
 
@@ -194,11 +195,11 @@ test("simple controls update the camera view immediately through canonical state
   );
   // 20% closer along the current position->target geometry; target unchanged.
   expect(closer.activeCamera.position[0]).toBeCloseTo(0, 6);
-  expect(closer.activeCamera.position[1]).toBeCloseTo(1.59, 6);
-  expect(closer.activeCamera.position[2]).toBeCloseTo(2.72, 6);
+  expect(closer.activeCamera.position[1]).toBeCloseTo(1.632, 6);
+  expect(closer.activeCamera.position[2]).toBeCloseTo(1.2, 6);
   const closerDistance = Math.hypot(
     0 - closer.activeCamera.position[0],
-    1.55 - closer.activeCamera.position[1],
+    1.68 - closer.activeCamera.position[1],
     0 - closer.activeCamera.position[2],
   );
   expect(closerDistance).toBeCloseTo(initialTargetDistance * 0.8, 6);
@@ -208,10 +209,10 @@ test("simple controls update the camera view immediately through canonical state
     page,
     (s) => !positionEquals(s.activeCamera.position, closer.activeCamera.position),
   );
-  expect(farther.activeCamera.position[2]).toBeCloseTo(3.264, 6);
+  expect(farther.activeCamera.position[2]).toBeCloseTo(1.44, 6);
 
   // Emphasis re-aims the target at the CURRENT character transforms
-  // (character_b stands at x=0.8; the target blends halfway to x=0.4).
+  // (character_b stands at x=0.5 (v2 blocking); the target blends halfway to x=0.25).
   // The camera POSITION stays put — the view DIRECTION is what changes.
   await page.getByTestId("control-emphasize-b").click();
   const emphasized = await waitForSnapshot(
@@ -222,8 +223,8 @@ test("simple controls update the camera view immediately through canonical state
   );
   const direction = emphasized.activeCamera.worldDirection;
   const toTarget = [
-    0.4 - emphasized.activeCamera.position[0],
-    1.55 - emphasized.activeCamera.position[1],
+    0.25 - emphasized.activeCamera.position[0],
+    1.68 - emphasized.activeCamera.position[1],
     0 - emphasized.activeCamera.position[2],
   ];
   const toTargetLength = Math.hypot(toTarget[0], toTarget[1], toTarget[2]);

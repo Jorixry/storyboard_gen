@@ -1,5 +1,5 @@
 seedance-prompt: engineering-derived target-model draft (Seedance, D026 provisional); NOT claiming official Seedance support
-source: shot-state=shot-prompt8-medium state-schema=v1 template=dialogue_medium_two_shot@v1 review-status=engineering_ready adapter=seedance_video@1.0.0 adapter-config=v1
+source: shot-state=shot-prompt8-medium state-schema=v1 template=dialogue_medium_two_shot@v2 review-status=engineering_ready adapter=seedance_video@1.0.0 adapter-config=v1
 note: compiled deterministically from the canonical ShotState following the official prompt guidance surveyed in docs/Seedance-API-调研报告-2026-09-14.md (Shot-structured, descriptive camera language, one main camera movement, no parametrized focal/ISO/f-number); template review status is engineering_ready, so directing semantics are engineering-derived and NOT professionally verified
 protected-facts (must survive any later polish): character_identity, character_position, camera_geometry, focal_length, movement_type, continuity_rules
 engineering note: camera geometry, focal length and coordinates are deliberately NOT written as parametrized numbers (official guidance); they are carried by the exported composition/movement reference images and shot-state.json in this package
@@ -9,7 +9,7 @@ Shot 1: 固定机位，画面保持稳定（static camera）
 主体: 角色A（character_a） 与 角色B（character_b），双人对话场景（dialogue_room）
 
 subjects: character_a_and_character_b_equal_prominence
-composition: medium_two_shot; waist_up_framing; side_eye_level_view; heads_at_same_height; balanced_left_right
+composition: medium_two_shot; chest_up_framing; side_eye_level_view; heads_at_same_height; balanced_left_right
 optics: focal_35mm; eye_level
 motion: static_camera
 continuity: maintain_axis; preserve_eyeline; balanced_two_shot

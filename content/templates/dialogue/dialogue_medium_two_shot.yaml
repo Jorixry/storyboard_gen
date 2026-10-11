@@ -1,10 +1,10 @@
 id: dialogue_medium_two_shot
-version: 1
+version: 2
 reviewStatus: engineering_ready
 
 display:
   nameZh: 双人中景
-  plainDescriptionZh: 两人同时入画、腰部以上的中景画面，两人占比相当，两人的关系本身成为画面主体
+  plainDescriptionZh: 两人同时入画、胸部以上的中景画面，两人占比相当，两人的关系本身成为画面主体
   narrativePurposeZh: 同时呈现对话双方与他们之间的关系（亲密、对立、同盟），让观众实时看到说者与听者的反应，无需剪辑介入
   emotionalEffectsZh:
     - 亲密
@@ -21,27 +21,27 @@ scene:
 
 characters:
   - id: character_a
-    position: [-0.8, 0.0, 0.0]
+    position: [-0.5, 0.0, 0.0]
     rotationYDeg: 90
   - id: character_b
-    position: [0.8, 0.0, 0.0]
+    position: [0.5, 0.0, 0.0]
     rotationYDeg: -90
 
 camera:
-  position: [0.0, 1.6, 3.4]
-  target: [0.0, 1.55, 0.0]
+  position: [0.0, 1.62, 1.5]
+  target: [0.0, 1.68, 0.0]
   focalLengthMm: 35
   shotSize: medium_two_shot
 
 movement:
   type: static
   start:
-    position: [0.0, 1.6, 3.4]
-    target: [0.0, 1.55, 0.0]
+    position: [0.0, 1.62, 1.5]
+    target: [0.0, 1.68, 0.0]
     focalLengthMm: 35
   end:
-    position: [0.0, 1.6, 3.4]
-    target: [0.0, 1.55, 0.0]
+    position: [0.0, 1.62, 1.5]
+    target: [0.0, 1.68, 0.0]
     focalLengthMm: 35
   durationSeconds: 4
   easing: linear
@@ -56,7 +56,7 @@ promptSemantics:
     - character_a_and_character_b_equal_prominence
   composition:
     - medium_two_shot
-    - waist_up_framing
+    - chest_up_framing
     - side_eye_level_view
     - heads_at_same_height
     - balanced_left_right
@@ -71,11 +71,11 @@ promptSemantics:
     - balanced_two_shot
 
 acceptance:
-  - 两人腰部以上同时完整入画
+  - 两人胸部以上同时完整入画
   - 左右均衡，任一方不超过画面约40%
   - 平视且两人头部同高
   - 两人面部均清晰可读
   - 两人之间的物理间距清晰可辨
   - 相机未越过两人对话轴线
 
-directorNotes: 来源为 v2 导演交接包 shot-template-intake.csv。参考图由v1公有领域宣传照换为本项目 AI 生成资产（咖啡馆场景，L4-2-two-shot-01.jpg）。新增左右均衡40%与头部同高两条量化验收线（知识图谱v1.1口径）。默认运镜暂定为固定机位（static，起点终点一致，时长4秒）；v2交接允许按剧情改为4-6秒缓慢推近，默认运镜待项目发起人确认后再调整。角色A（35岁男）与角色B（30岁女）的年龄与定妆信息仅为提示词与参考图语境，3D场景使用通用假人，不支持身份一致性。曝光、白平衡、光线方向为固定场景与评审约束，不作为可编辑控制项。本模板为 engineering_ready，改为 approved 前必须经项目发起人审核。
+directorNotes: 来源为 v2 导演交接包 shot-template-intake.csv。参考图由v1公有领域宣传照换为本项目 AI 生成资产（咖啡馆场景，L4-2-two-shot-01.jpg）。新增左右均衡40%与头部同高两条量化验收线（知识图谱v1.1口径）。默认运镜暂定为固定机位（static，起点终点一致，时长4秒）；v2交接允许按剧情改为4-6秒缓慢推近，默认运镜待项目发起人确认后再调整。角色A（35岁男）与角色B（30岁女）的年龄与定妆信息仅为提示词与参考图语境，3D场景使用通用假人，不支持身份一致性。曝光、白平衡、光线方向为固定场景与评审约束，不作为可编辑控制项。本模板为 engineering_ready，改为 approved 前必须经项目发起人审核。v2（2026-10-12，docs/DECISIONS.md D030）：v1 于 2026-10-11 导演目视终验退回（「取景太松：需要更近，画框下缘裁在胸部，人物胸部以下不入画」），且 v1 实际裁切位置在膝下至脚踝（画框下缘约世界高 0.57m），与 v1 自身验收线「腰部以上」不符。技术部按导演校准要求以本仓库 3D 舞台渲染了 v1/A（纯机位前移腰线裁切、站位不动）/B（胸线裁切+站位收紧）四组预览图供导演比对（tmp/medium-v2-preview/，未入库），导演拍板选 B 且焦段维持 35mm 不变：站位 ±0.8→±0.5（blocking 变更经导演本决策批准）、相机 [0.0, 1.62, 1.5]、target [0.0, 1.68, 0.0]，取舍理由为按中景定义 B 更贴合（A 偏中全景）。文案、验收线第 1 条与 composition 语义 token 同步由「腰部」改为「胸部」（waist_up_framing→chest_up_framing）；shotSize 维持 medium_two_shot 枚举（Schema 无双人胸上专用值，medium 为单人口径，不自创枚举）。16:9 下双人同框胸线裁切的纵向跨度约为胸至头顶高度的 2 倍，头顶留白偏多为该取景固有形态，导演已在预览比对中知情接受。v2 仍为 engineering_ready，需重新走「3D 评审 → 书面批准」流程。

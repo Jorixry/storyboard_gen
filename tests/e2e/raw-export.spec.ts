@@ -54,9 +54,9 @@ const OTS_B_TO_A = {
   start: { position: [2.15, 1.45, 0.8] as const, target: [-0.85, 1.55, -0.2] as const },
   end: { position: [1.95, 1.43, 0.2] as const, target: [-0.85, 1.55, -0.2] as const },
 };
-/** dialogue_medium_two_shot: static, all three poses identical, 35mm. */
+/** dialogue_medium_two_shot: static, all three poses identical, 35mm (v2 / D030). */
 const MEDIUM = {
-  camera: { position: [0, 1.6, 3.4] as const, target: [0, 1.55, 0] as const, focal: 35 },
+  camera: { position: [0, 1.62, 1.5] as const, target: [0, 1.68, 0] as const, focal: 35 },
 };
 /** makeCloser on ots_a_to_b: 20% along position->target. */
 const CLOSER_POSITION: [number, number, number] = [-1.55, 1.47, 0.6];
