@@ -343,17 +343,31 @@ test("constrained transforms update the canonical ShotState and the 3D preview",
   );
   expect(moved.activeCamera.position[0]).toBeCloseTo(1.5, 6);
 
-  // Out-of-range values are clamped to the provisional engineering box.
+  // Out-of-range input stays visible, is NOT written (canonical keeps the
+  // last valid value) and the warning persists until corrected (2026-10-11
+  // director-approved UX).
   await posX.fill("999");
-  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.position[0] - 2.9) < 1e-6);
-  await expect(posX).toHaveValue("2.9");
-  await expect(page.getByTestId("footer-camera")).toContainText("2.90");
+  await expect(posX).toHaveValue("999");
+  await expect(page.getByTestId("input-camera-position-x-warning")).toContainText(
+    "超出工程安全范围 -2.9–2.9，未写入（当前保留 1.5",
+  );
+  await expect(page.getByTestId("footer-camera")).toContainText("camera [1.50, 1.45, 0.80]");
+  await posX.fill("2.5");
+  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.position[0] - 2.5) < 1e-6);
+  await expect(page.getByTestId("input-camera-position-x-warning")).toHaveCount(0);
+  await expect(page.getByTestId("footer-camera")).toContainText("camera [2.50, 1.45, 0.80]");
 
-  // Focal length input clamps to the Schema range (500 -> 200mm).
+  // Focal input rejects out-of-range the same way (500 is never written);
+  // an in-range 50mm commits through the film-gate math.
   const focal = page.getByTestId("input-camera-focal-length");
   await focal.fill("500");
-  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - 5.796249337657643) < 1e-4);
-  await expect(focal).toHaveValue("200");
+  await expect(focal).toHaveValue("500");
+  await expect(page.getByTestId("input-camera-focal-length-warning")).toContainText(
+    "超出工程安全范围 12–200，未写入（当前保留 75",
+  );
+  await focal.fill("50");
+  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - 22.895192527371208) < 1e-4);
+  await expect(focal).toHaveValue("50");
 
   // Character transforms write the same canonical state (director view shows it).
   await page.getByTestId("view-toggle-director").click();

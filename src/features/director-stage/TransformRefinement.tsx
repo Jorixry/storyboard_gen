@@ -10,10 +10,14 @@
  * import, posing, material/lighting editor, timeline or movement editing.
  *
  * Every edit writes the SAME canonical ShotState through the same typed
- * domain commands as the simple controls, clamped to the provisional
- * engineering constraints. Refused commands leave the state untouched and
- * show the reason.
+ * domain commands as the simple controls. Out-of-range drafts are gated at
+ * the field: they stay visible, never reach the commands, and warn
+ * persistently until corrected (2026-10-11 director-approved UX; yaw keeps
+ * its wrap-into-range 自动归一 behavior). The commands still clamp as a
+ * defense-in-depth layer, and refused commands leave the state untouched
+ * and show the reason.
  */
+import { useState } from "react";
 import { useStore } from "zustand/react";
 
 import type { CharacterId, Vec3 } from "@/domain/schemas";
@@ -35,24 +39,66 @@ function NumberField({
   unit,
   value,
   onCommit,
+  onWarning,
   testId,
   min,
   max,
   step,
   rangeNote,
+  outOfRangePolicy = "reject",
 }: {
   label: string;
   /** Physical unit shown next to the field, e.g. "m", "mm", "°". */
   unit: string;
   value: number;
   onCommit: (next: number) => void;
+  /** Panel-level warning channel (shared slot; the field keeps its own persistent warning). */
+  onWarning: (message: string) => void;
   testId: string;
   min: number;
   max: number;
   step: number;
   /** Optional provenance note appended to the displayed numeric range. */
   rangeNote?: string;
+  /**
+   * "reject" (default): out-of-range input stays in the field and never
+   * reaches the canonical state. "commit": any FINITE value is committed and
+   * the domain command transforms it (yaw wraps into [-180, 180] — the
+   * 自动归一 promise on the field).
+   */
+  outOfRangePolicy?: "reject" | "commit";
 }) {
+  // 2026-10-11 director-approved UX: an out-of-range (or non-numeric) draft
+  // STAYS in the input and is never written to the canonical ShotState — the
+  // domain commands keep the last valid value. The warning persists until the
+  // user returns the field to the allowed range and the commit succeeds.
+  const [draft, setDraft] = useState<string | null>(null);
+  const [fieldWarning, setFieldWarning] = useState("");
+
+  const shown = draft ?? formatNumber(value);
+
+  const handleChange = (raw: string) => {
+    if (raw === "") {
+      // Transient empty while typing: keep the draft, touch nothing.
+      setDraft("");
+      return;
+    }
+    const parsed = Number(raw);
+    const outOfRange = parsed < min || parsed > max;
+    if (!Number.isFinite(parsed) || (outOfRange && outOfRangePolicy === "reject")) {
+      const message = Number.isFinite(parsed)
+        ? `「${label}」请求值 ${raw} 超出工程安全范围 ${formatNumber(min)}–${formatNumber(max)}，未写入（当前保留 ${formatNumber(value)}；范围由房间边界与内容 Schema 推导，非导演批准范围）`
+        : `「${label}」请输入数字（允许范围 ${formatNumber(min)} 至 ${formatNumber(max)}）`;
+      setDraft(raw);
+      setFieldWarning(message);
+      onWarning(message);
+      return;
+    }
+    setDraft(null);
+    setFieldWarning("");
+    onCommit(parsed);
+  };
+
   return (
     <label className="number-field">
       <span className="number-field-label">{label}</span>
@@ -60,24 +106,24 @@ function NumberField({
         type="number"
         data-testid={testId}
         aria-label={`${label}（单位 ${unit}，允许范围 ${formatNumber(min)} 至 ${formatNumber(max)}${rangeNote ? `，${rangeNote}` : ""}）`}
-        value={formatNumber(value)}
+        aria-invalid={fieldWarning !== ""}
+        value={shown}
         min={min}
         max={max}
         step={step}
         onChange={(event) => {
-          if (event.target.value === "") {
-            return;
-          }
-          const parsed = Number(event.target.value);
-          if (Number.isFinite(parsed)) {
-            onCommit(parsed);
-          }
+          handleChange(event.target.value);
         }}
       />
       <span className="number-field-range" data-testid={`${testId}-range`}>
         {unit} · {formatNumber(min)}–{formatNumber(max)}
         {rangeNote ? `（${rangeNote}）` : ""}
       </span>
+      {fieldWarning !== "" ? (
+        <span className="number-field-warning" data-testid={`${testId}-warning`} role="alert">
+          {fieldWarning}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -146,7 +192,8 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
       <div className="transform-refinement-body">
         <p className="control-hint">
           受临时工程约束（provisional engineering constraints）限制的数值编辑，范围由房间边界与内容
-          Schema 推导，非导演批准范围。超出范围的数值将被收拢（clamp）。
+          Schema
+          推导，非导演批准范围。超出允许范围的输入不会被写入（保持上一次合法值）并持续提示，直到改回范围内；命令层仍保留收拢（clamp）作为兜底。
         </p>
         <fieldset className="refinement-group" data-testid="refinement-camera">
           <legend>相机</legend>
@@ -159,6 +206,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_X_RANGE_M.max}
               step={0.05}
               testId="input-camera-position-x"
+              onWarning={onWarning}
               onCommit={(next) =>
                 commitVec3(
                   "相机位置 x",
@@ -178,6 +226,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_Y_RANGE_M.max}
               step={0.05}
               testId="input-camera-position-y"
+              onWarning={onWarning}
               onCommit={(next) =>
                 commitVec3(
                   "相机位置 y",
@@ -197,6 +246,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_Z_RANGE_M.max}
               step={0.05}
               testId="input-camera-position-z"
+              onWarning={onWarning}
               onCommit={(next) =>
                 commitVec3(
                   "相机位置 z",
@@ -218,6 +268,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_X_RANGE_M.max}
               step={0.05}
               testId="input-camera-target-x"
+              onWarning={onWarning}
               onCommit={(next) =>
                 commitVec3(
                   "相机目标 x",
@@ -237,6 +288,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_Y_RANGE_M.max}
               step={0.05}
               testId="input-camera-target-y"
+              onWarning={onWarning}
               onCommit={(next) =>
                 commitVec3(
                   "相机目标 y",
@@ -256,6 +308,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               max={CAMERA_POSITION_Z_RANGE_M.max}
               step={0.05}
               testId="input-camera-target-z"
+              onWarning={onWarning}
               onCommit={(next) =>
                 commitVec3(
                   "相机目标 z",
@@ -277,6 +330,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
             max={200}
             step={1}
             testId="input-camera-focal-length"
+            onWarning={onWarning}
             onCommit={(next) =>
               commitWithReadBack(
                 "焦距",
@@ -302,6 +356,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                   max={CHARACTER_POSITION_X_RANGE_M.max}
                   step={0.05}
                   testId={`input-${id}-position-x`}
+                  onWarning={onWarning}
                   onCommit={(next) =>
                     commitVec3(
                       `${label}位置 x`,
@@ -323,6 +378,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                   max={CHARACTER_POSITION_Z_RANGE_M.max}
                   step={0.05}
                   testId={`input-${id}-position-z`}
+                  onWarning={onWarning}
                   onCommit={(next) =>
                     commitVec3(
                       `${label}位置 z`,
@@ -345,6 +401,8 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                   max={180}
                   step={5}
                   testId={`input-${id}-yaw`}
+                  onWarning={onWarning}
+                  outOfRangePolicy="commit"
                   onCommit={(next) => {
                     try {
                       setCharacterYaw(id, next);

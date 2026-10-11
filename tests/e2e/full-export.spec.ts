@@ -197,17 +197,27 @@ test("an edited (stale) frame is excluded, and raw export stays usable", async (
   expect(raw.suggestedFilename()).toMatch(/^shot-.+-raw\.zip$/);
 });
 
-test("safe-range feedback: an out-of-range refinement value is visibly clamped", async ({
+test("safe-range feedback: an out-of-range refinement value stays visible, is not written, and the warning persists until corrected", async ({
   page,
 }) => {
   await selectFirstTemplate(page);
   await page.getByTestId("advanced-refinement").locator("summary").click();
   const field = page.getByTestId("input-camera-position-x");
+  const fieldWarning = page.getByTestId("input-camera-position-x-warning");
+
+  // Out-of-range: the draft STAYS in the input, nothing is written (the
+  // canonical state keeps the last valid value), and both the field-level
+  // and the panel-level warnings show the reason.
   await field.fill("999");
+  await expect(field).toHaveValue("999");
+  await expect(fieldWarning).toContainText("超出工程安全范围 -2.9–2.9，未写入");
+  await expect(fieldWarning).toContainText("当前保留 0");
   const warning = page.getByTestId("command-warning");
   await expect(warning).toBeVisible();
-  await expect(warning).toContainText("超出工程安全范围");
-  await expect(warning).toContainText("已收拢为 2.9");
-  // The applied state really is the clamped value, not the request.
-  await expect(field).toHaveValue("2.9");
+  await expect(warning).toContainText("未写入");
+
+  // Corrected in-range: the warning clears and the commit lands.
+  await field.fill("2.5");
+  await expect(fieldWarning).toHaveCount(0);
+  await expect(page.getByTestId("footer-camera")).toContainText("camera [2.50, 1.62, 1.50]");
 });
