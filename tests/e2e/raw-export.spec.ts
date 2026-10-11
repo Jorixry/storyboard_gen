@@ -343,7 +343,7 @@ test("template selection through raw export downloads the deterministic five-fil
   expect(result.state.template).toEqual({
     id: "dialogue_ots_a_to_b",
     version: 3,
-    reviewStatus: "engineering_ready",
+    reviewStatus: "approved", // D031 written approval 2026-10-11
   });
   // The adjusted current camera — NOT the template default, NOT a preview pose.
   expectVecCloseTo(result.state.camera.position, CLOSER_POSITION);
@@ -459,7 +459,7 @@ async function verifyOtsExport(
   const result = await exportAndRead(page, testCase.evidence);
 
   expect(result.state.template.id).toBe(testCase.id);
-  expect(result.state.template.reviewStatus).toBe("engineering_ready");
+  expect(result.state.template.reviewStatus).toBe("approved"); // D031
   expect(result.state.camera.focalLengthMm).toBe(75);
   expectVecCloseTo(result.state.camera.position, testCase.spec.camera.position);
   expectVecCloseTo(result.state.camera.target, testCase.spec.camera.target);

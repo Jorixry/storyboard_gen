@@ -19,7 +19,7 @@ describe("real repository content", () => {
     ]);
   });
 
-  it("keeps templates at their current versions and engineering_ready (never approved)", async () => {
+  it("keeps templates at their current versions and review statuses", async () => {
     const templates = await loadRealTemplates();
     const expectedVersions: Record<string, number> = {
       // OTS bumped to v3 by the D029 director camera reposition (v2 was the
@@ -29,9 +29,16 @@ describe("real repository content", () => {
       dialogue_ots_a_to_b: 3,
       dialogue_ots_b_to_a: 3,
     };
+    // D031: both OTS v3 templates carry the 2026-10-11 written approval;
+    // the medium v2 reframe is still awaiting re-review -> written approval.
+    const expectedStatuses: Record<string, string> = {
+      dialogue_medium_two_shot: "engineering_ready",
+      dialogue_ots_a_to_b: "approved",
+      dialogue_ots_b_to_a: "approved",
+    };
     for (const template of templates) {
       expect(template.version).toBe(expectedVersions[template.id]);
-      expect(template.reviewStatus).toBe("engineering_ready");
+      expect(template.reviewStatus).toBe(expectedStatuses[template.id]);
     }
   });
 

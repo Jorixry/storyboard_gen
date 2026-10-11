@@ -85,11 +85,19 @@ describe("SeedanceVideoPromptAdapter golden snapshots", () => {
   });
 
   it("produces the exact deterministic warnings for dialogue_ots_a_to_b", async () => {
+    // D031: approved template — no reviewStatus warning; an engineering
+    // template still gets one (asserted in the next test).
     const state = await stateFromTemplate("dialogue_ots_a_to_b");
     const result = await (await realAdapter()).compile(normalizeShotState(state));
-    expect(result.warnings).toEqual([
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("still warns the reviewStatus mismatch for engineering_ready templates (medium)", async () => {
+    const state = await stateFromTemplate("dialogue_medium_two_shot");
+    const result = await (await realAdapter()).compile(normalizeShotState(state));
+    expect(result.warnings).toContainEqual(
       'template: reviewStatus "engineering_ready" is not "approved"; directing semantics are engineering-derived and not professionally verified',
-    ]);
+    );
   });
 
   it("warns when a movement is declared but the poses are identical (medium template edited)", async () => {
@@ -125,8 +133,14 @@ describe("SeedanceVideoPromptAdapter labeling and language invariants", () => {
     expect(prompt).toMatch(/^seedance-prompt: engineering-derived target-model draft/);
     expect(prompt).toContain("NOT claiming official Seedance support");
     expect(prompt).toContain("D026 provisional");
-    expect(prompt).toContain("NOT professionally verified");
     expect(prompt).toContain("protected-facts");
+    // D031: the OTS template is approved, so the professional-verification
+    // disclaimer is gone from its prompt; an engineering template keeps it.
+    expect(prompt).not.toContain("NOT professionally verified");
+    const engineering = await stateFromTemplate("dialogue_medium_two_shot");
+    const engineeringPrompt = (await (await realAdapter()).compile(normalizeShotState(engineering)))
+      .prompt;
+    expect(engineeringPrompt).toContain("NOT professionally verified");
   });
 
   it("uses descriptive movement language and keeps parametrized numbers out of the prose", async () => {
@@ -164,7 +178,7 @@ describe("SeedanceVideoPromptAdapter determinism and purity", () => {
       shotStateSchemaVersion: 1,
       templateId: "dialogue_ots_b_to_a",
       templateVersion: 3,
-      templateReviewStatus: "engineering_ready",
+      templateReviewStatus: "approved", // D031 written approval 2026-10-11
     });
   });
 

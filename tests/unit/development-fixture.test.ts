@@ -8,25 +8,25 @@ import {
 } from "@/features/rendering/development-fixture";
 import { loadRealTemplates } from "../helpers/content-test-utils";
 
-const ENGINEERING_READY_ONLY = ["engineering_ready"] as const;
+const DEVELOPMENT_STATUSES = ["engineering_ready", "approved"] as const;
 
 const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () => {
+describe("resolveDevelopmentFixture — explicit opt-in", () => {
   it("loads the labeled development fixture through the development loader", async () => {
     const templates = await loadRealTemplates();
     const fixture = resolveDevelopmentFixture(templates, {
       templateId: "dialogue_ots_a_to_b",
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
     });
     expect(fixture.template.id).toBe("dialogue_ots_a_to_b");
-    expect(fixture.template.reviewStatus).toBe("engineering_ready");
+    expect(fixture.template.reviewStatus).toBe("approved"); // D031
     expect(fixture.shotState.template).toEqual({
       id: "dialogue_ots_a_to_b",
       version: 3, // OTS v3 (D029 camera reposition; v2 was D025 75mm)
-      reviewStatus: "engineering_ready",
+      reviewStatus: "approved", // D031 written approval 2026-10-11
     });
-    expect(fixture.isDirectorApproved).toBe(false);
+    expect(fixture.isDirectorApproved).toBe(true);
   });
 
   it("keeps the OTS development fixture at the D025-confirmed 75mm", async () => {
@@ -34,7 +34,7 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
     for (const templateId of ["dialogue_ots_a_to_b", "dialogue_ots_b_to_a"]) {
       const fixture = resolveDevelopmentFixture(templates, {
         templateId,
-        includeStatuses: ENGINEERING_READY_ONLY,
+        includeStatuses: DEVELOPMENT_STATUSES,
       });
       expect(fixture.shotState.camera.focalLengthMm).toBe(75);
       expect(fixture.shotState.movement.start.focalLengthMm).toBe(75);
@@ -46,7 +46,7 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
     const templates = await loadRealTemplates();
     const fixture = resolveDevelopmentFixture(templates, {
       templateId: "dialogue_ots_a_to_b",
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
       generateId: createSequenceIdFactory("dev-fixture"),
     });
     expect(fixture.shotState.id).toBe("dev-fixture-1");
@@ -60,11 +60,11 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
     const templates = await loadRealTemplates();
     const first = resolveDevelopmentFixture(templates, {
       templateId: "dialogue_ots_a_to_b",
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
     });
     const second = resolveDevelopmentFixture(templates, {
       templateId: "dialogue_ots_a_to_b",
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
     });
     // Default loads use the production UUIDv4 factory: every template load is
     // a fresh ShotState, never a colliding reused ID.
@@ -78,19 +78,19 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
     const generateId = createSequenceIdFactory("dev-fixture");
     const first = resolveDevelopmentFixture(templates, {
       templateId: "dialogue_ots_a_to_b",
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
       generateId,
     });
     const second = resolveDevelopmentFixture(templates, {
       templateId: "dialogue_ots_b_to_a",
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
       generateId,
     });
     expect(first.shotState.id).toBe("dev-fixture-1");
     expect(second.shotState.id).toBe("dev-fixture-2");
   });
 
-  it("refuses the fixture without an explicit engineering_ready opt-in", async () => {
+  it("refuses the fixture without an explicit opt-in", async () => {
     const templates = await loadRealTemplates();
     expect(() =>
       resolveDevelopmentFixture(templates, {
@@ -99,10 +99,11 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
       }),
     ).toThrow(FixtureTemplateNotLoadableError);
 
-    // An approved-only request must not leak engineering_ready content.
+    // An approved-only request must not leak engineering_ready content (the
+    // medium template after D031); the approved OTS pair loads there fine.
     expect(() =>
       resolveDevelopmentFixture(templates, {
-        templateId: "dialogue_ots_a_to_b",
+        templateId: "dialogue_medium_two_shot",
         includeStatuses: ["approved"],
       }),
     ).toThrow(FixtureTemplateNotLoadableError);
@@ -113,7 +114,7 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
     expect(() =>
       resolveDevelopmentFixture(templates, {
         templateId: "dialogue_ots_75mm_comparison",
-        includeStatuses: ENGINEERING_READY_ONLY,
+        includeStatuses: DEVELOPMENT_STATUSES,
       }),
     ).toThrow(FixtureTemplateNotLoadableError);
   });
@@ -123,15 +124,16 @@ describe("resolveDevelopmentFixture — explicit engineering_ready opt-in", () =
     const before = JSON.parse(JSON.stringify(templates)) as unknown;
     resolveDevelopmentFixture(templates, {
       templateId: "dialogue_ots_a_to_b",
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
     });
     expect(JSON.parse(JSON.stringify(templates))).toEqual(before);
   });
 });
 
-describe("production boundary remains closed", () => {
-  it("still returns zero templates for the current (engineering_ready-only) content", async () => {
+describe("production boundary", () => {
+  it("returns exactly the two D031-approved OTS templates", async () => {
     const templates = await loadRealTemplates();
-    expect(loadProductionTemplates(templates)).toEqual([]);
+    const production = loadProductionTemplates(templates);
+    expect(production.map((t) => t.id)).toEqual(["dialogue_ots_a_to_b", "dialogue_ots_b_to_a"]);
   });
 });

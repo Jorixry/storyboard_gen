@@ -104,9 +104,10 @@ describe("GenericVideoPromptAdapter golden snapshots", () => {
   });
 
   it("produces the exact deterministic warnings (order included) for dialogue_ots_a_to_b", async () => {
+    // D031: the template is approved, so the reviewStatus warning is gone; an
+    // engineering template (medium) still produces it (asserted below).
     const result = await compileState(await stateFromTemplate("dialogue_ots_a_to_b"));
     expect(result.warnings).toEqual([
-      'template: reviewStatus "engineering_ready" is not "approved"; directing semantics are engineering-derived and not professionally verified',
       "adapter-config: allowLlmPolish=true but LLM polish is not implemented; output is deterministic text only (llmMayChange: wording, grammar)",
       "semantics: 11 token(s) have no generic-adapter interpretation; rendered verbatim without invented meaning " +
         "(subjects[1]=character_a_shoulder_soft_foreground, composition[0]=over_the_shoulder, " +
@@ -115,6 +116,13 @@ describe("GenericVideoPromptAdapter golden snapshots", () => {
         "continuity[0]=maintain_axis, continuity[1]=preserve_eyeline, continuity[2]=foreground_shoulder_frame, " +
         "continuity[3]=matched_reverse_pair)",
     ]);
+  });
+
+  it("still warns the reviewStatus mismatch for engineering_ready templates (medium)", async () => {
+    const result = await compileState(await stateFromTemplate("dialogue_medium_two_shot"));
+    expect(result.warnings[0]).toBe(
+      'template: reviewStatus "engineering_ready" is not "approved"; directing semantics are engineering-derived and not professionally verified',
+    );
   });
 
   it("renders the semantics block in the exact format of the committed semantic-reference fixture", async () => {
@@ -133,7 +141,11 @@ describe("GenericVideoPromptAdapter golden snapshots", () => {
       "not tuned for and not claiming support of any specific video model",
     );
     expect(result.prompt.toLowerCase()).not.toContain("seedance");
-    expect(result.prompt).toContain("NOT professionally verified");
+    // D031: the OTS template is approved, so its prompt no longer carries the
+    // engineering-derived disclaimer; an engineering template still does.
+    expect(result.prompt).not.toContain("NOT professionally verified");
+    const engineering = await compileState(await stateFromTemplate("dialogue_medium_two_shot"));
+    expect(engineering.prompt).toContain("NOT professionally verified");
   });
 });
 
@@ -150,7 +162,7 @@ describe("GenericVideoPromptAdapter metadata and determinism", () => {
       shotStateSchemaVersion: 1,
       templateId: "dialogue_ots_b_to_a",
       templateVersion: 3, // OTS bumped to v3 by the D029 camera reposition
-      templateReviewStatus: "engineering_ready",
+      templateReviewStatus: "approved", // D031 written approval 2026-10-11
     });
   });
 

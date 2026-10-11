@@ -2,8 +2,10 @@
  * Production/test template-loading boundary.
  *
  * - `loadProductionTemplates` is the only production-facing entry. It returns
- *   exclusively `reviewStatus === "approved"` templates. With the current
- *   content (three `engineering_ready` templates) it returns an empty list.
+ *   exclusively `reviewStatus === "approved"` templates. Since the 2026-10-11
+ *   written approval (D031) both OTS v3 templates are approved and load here;
+ *   `dialogue_medium_two_shot` stays engineering_ready and production-hidden
+ *   until its own written approval.
  * - `loadDevelopmentTemplates` is the explicit opt-in for tests and clearly
  *   labeled development APIs: the caller must name the non-production
  *   statuses it wants; nothing is included implicitly.

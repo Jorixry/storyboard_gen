@@ -40,7 +40,7 @@ import {
   type PersistenceStatus,
 } from "@/state/session-persistence";
 
-const DEVELOPMENT_INCLUDE_STATUSES = ["engineering_ready"] as const;
+const DEVELOPMENT_INCLUDE_STATUSES = ["engineering_ready", "approved"] as const;
 
 /** Non-canonical footer copy keyed by the real persistence outcome. */
 const PERSISTENCE_STATUS_COPY: Record<PersistenceStatus, string> = {
@@ -63,7 +63,7 @@ export default function Home() {
       }),
     [],
   );
-  // Production boundary evidence shown in the header: still zero today.
+  // Production boundary evidence shown in the header: the approved count.
   const productionTemplateCount = useMemo(
     () => loadProductionTemplates(COMPILED_SHOT_TEMPLATES).length,
     [],
@@ -116,7 +116,9 @@ export default function Home() {
         <h1>Storyboard Director MVP — 导演工作台</h1>
         <div className="studio-badges">
           <span className="badge-development-fixture">DEVELOPMENT WORKSPACE</span>
-          <span className="badge-review-status">engineering_ready · not director approved</span>
+          <span className="badge-review-status">
+            review status per template（approved / engineering_ready）
+          </span>
           <span className="badge-production-count" data-testid="production-template-count">
             production gallery: {productionTemplateCount}
           </span>

@@ -1,6 +1,6 @@
 seedance-prompt: engineering-derived target-model draft (Seedance, D026 provisional); NOT claiming official Seedance support
-source: shot-state=shot-prompt8-ots-b-to-a state-schema=v1 template=dialogue_ots_b_to_a@v3 review-status=engineering_ready adapter=seedance_video@1.0.0 adapter-config=v1
-note: compiled deterministically from the canonical ShotState following the official prompt guidance surveyed in docs/Seedance-API-调研报告-2026-09-14.md (Shot-structured, descriptive camera language, one main camera movement, no parametrized focal/ISO/f-number); template review status is engineering_ready, so directing semantics are engineering-derived and NOT professionally verified
+source: shot-state=shot-prompt8-ots-b-to-a state-schema=v1 template=dialogue_ots_b_to_a@v3 review-status=approved adapter=seedance_video@1.0.0 adapter-config=v1
+note: compiled deterministically from the canonical ShotState following the official prompt guidance surveyed in docs/Seedance-API-调研报告-2026-09-14.md (Shot-structured, descriptive camera language, one main camera movement, no parametrized focal/ISO/f-number); template review status is approved
 protected-facts (must survive any later polish): character_identity, character_position, camera_geometry, focal_length, movement_type, continuity_rules
 engineering note: camera geometry, focal length and coordinates are deliberately NOT written as parametrized numbers (official guidance); they are carried by the exported composition/movement reference images and shot-state.json in this package
 

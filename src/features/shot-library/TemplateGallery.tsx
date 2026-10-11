@@ -4,10 +4,12 @@
  * Development template gallery (Prompt 4 / Phase 1 Day 4).
  *
  * Displays ONLY templates the caller loaded through the explicit development
- * loader opt-in (engineering_ready today). Every card states the development
- * status plainly: DEVELOPMENT template, reviewStatus, and "not director
- * approved". Reference images are served from the local /reference-images
- * directory — never a remote URL, never a provider request.
+ * loader opt-in (engineering_ready + approved today). Every card states the
+ * review status plainly: DEVELOPMENT card, reviewStatus, and the approval
+ * suffix ("not director approved" for engineering content, the written-
+ * approval note for approved content). Reference images are served from the
+ * local /reference-images directory — never a remote URL, never a provider
+ * request.
  */
 import type { ShotTemplate } from "@/domain/shot-template";
 
@@ -23,8 +25,8 @@ export function TemplateGallery({ templates, selectedTemplateId, onSelect }: Tem
       <div className="template-gallery-header">
         <h2>选择对话镜头模板</h2>
         <p className="gallery-development-note" data-testid="gallery-development-note">
-          DEVELOPMENT GALLERY — engineering_ready 模板，未获导演批准（not director
-          approved）。正式画廊仅显示 approved 模板；当前数量为 0。
+          DEVELOPMENT GALLERY — 逐模板标注评审状态：engineering_ready 模板未获导演批准（not director
+          approved）；approved 模板已获书面批准。正式画廊仅显示 approved 模板。
         </p>
       </div>
       <ul className="template-gallery-grid">
@@ -65,7 +67,9 @@ export function TemplateGallery({ templates, selectedTemplateId, onSelect }: Tem
                     {template.id} v{template.version}
                   </span>
                   <span className="template-card-status" data-testid="template-review-status">
-                    {template.reviewStatus} · not director approved
+                    {template.reviewStatus === "approved"
+                      ? "approved · director approved"
+                      : `${template.reviewStatus} · not director approved`}
                   </span>
                 </p>
                 <button

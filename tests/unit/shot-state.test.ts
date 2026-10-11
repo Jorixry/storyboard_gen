@@ -47,6 +47,11 @@ describe("createShotStateFromTemplate", () => {
 
   it("preserves template id, version and reviewStatus", async () => {
     const templates = await loadRealTemplates();
+    const expectedStatuses: Record<string, string> = {
+      dialogue_medium_two_shot: "engineering_ready", // D030 reframe, re-approval pending
+      dialogue_ots_a_to_b: "approved", // D031 written approval 2026-10-11
+      dialogue_ots_b_to_a: "approved",
+    };
     for (const template of templates) {
       const state = createShotStateFromTemplate(template);
       expect(state.template).toEqual({
@@ -54,7 +59,7 @@ describe("createShotStateFromTemplate", () => {
         version: template.version,
         reviewStatus: template.reviewStatus,
       });
-      expect(state.template.reviewStatus).toBe("engineering_ready");
+      expect(state.template.reviewStatus).toBe(expectedStatuses[template.id]);
     }
   });
 

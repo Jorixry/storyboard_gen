@@ -115,19 +115,24 @@ test("gallery shows the three clearly labeled development templates", async ({ p
     const card = cards.nth(index);
     await expect(card).toHaveAttribute("data-template-id", expectedIds[index]);
     await expect(card.getByText("DEVELOPMENT", { exact: true })).toBeVisible();
-    await expect(card.getByTestId("template-review-status")).toHaveText(
-      "engineering_ready · not director approved",
-    );
     // Medium bumped to v2 by the D030 chest-up reframe; OTS templates are v3
     // since the D029 camera reposition.
     const expectedVersions = [2, 3, 3];
+    // D031: the OTS pair carries the 2026-10-11 written approval; the medium
+    // template stays engineering_ready.
+    const expectedStatuses = [
+      "engineering_ready · not director approved",
+      "approved · director approved",
+      "approved · director approved",
+    ];
     await expect(card.getByTestId("template-meta")).toContainText(
       `${expectedIds[index]} v${expectedVersions[index]}`,
     );
+    await expect(card.getByTestId("template-review-status")).toHaveText(expectedStatuses[index]);
     await expect(card.getByTestId("template-narrative-purpose")).not.toBeEmpty();
   }
-  // The production boundary stays visible: zero approved templates today.
-  await expect(page.getByTestId("production-template-count")).toHaveText("production gallery: 0");
+  // The production boundary stays visible: the two D031-approved templates.
+  await expect(page.getByTestId("production-template-count")).toHaveText("production gallery: 2");
 });
 
 test("gallery reference images load locally with zero external requests", async ({ page }) => {

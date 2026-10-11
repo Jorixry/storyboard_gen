@@ -7,13 +7,13 @@ import type { ShotTemplate } from "@/domain/shot-template";
 import { createShotStore, NoShotStateError, UnknownTemplateError } from "@/state/shot-store";
 import { loadRealTemplates } from "../helpers/content-test-utils";
 
-const ENGINEERING_READY_ONLY = ["engineering_ready"] as const;
+const DEVELOPMENT_STATUSES = ["engineering_ready", "approved"] as const;
 
 async function realStore() {
   const templates = await loadRealTemplates();
   const store = createShotStore({
     templates,
-    includeStatuses: ENGINEERING_READY_ONLY,
+    includeStatuses: DEVELOPMENT_STATUSES,
     generateId: createSequenceIdFactory("store"),
   });
   return { store, templates };
@@ -34,7 +34,7 @@ describe("createShotStore — template selection through the development opt-in"
     expect(first.template).toEqual({
       id: "dialogue_ots_a_to_b",
       version: 3, // OTS v3 (D029 camera reposition; v2 was D025 75mm)
-      reviewStatus: "engineering_ready",
+      reviewStatus: "approved", // D031 written approval 2026-10-11
     });
     expect(first.characters.map((c) => c.id).sort()).toEqual(["character_a", "character_b"]);
 
@@ -43,27 +43,30 @@ describe("createShotStore — template selection through the development opt-in"
     expect(store.getState().shotState!.id).not.toBe(first.id);
   });
 
-  it("rejects unknown template ids and refuses approved-only access to engineering content", async () => {
+  it("rejects unknown template ids; approved-only access loads the OTS pair but never the engineering medium", async () => {
     const templates = await loadRealTemplates();
     const store = createShotStore({
       templates,
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
     });
     expect(() => store.getState().selectTemplate("dialogue_ots_75mm_comparison")).toThrow(
       UnknownTemplateError,
     );
 
+    // D031: both OTS templates are approved, so an approved-only store loads
+    // them; the engineering_ready medium template stays invisible there.
     const approvedOnly = createShotStore({ templates, includeStatuses: ["approved"] });
-    expect(() => approvedOnly.getState().selectTemplate("dialogue_ots_a_to_b")).toThrow(
+    approvedOnly.getState().selectTemplate("dialogue_ots_a_to_b");
+    expect(() => approvedOnly.getState().selectTemplate("dialogue_medium_two_shot")).toThrow(
       UnknownTemplateError,
     );
   });
 
-  it("the production loader still returns zero templates for this content", async () => {
+  it("the production loader returns the two approved OTS templates for this content", async () => {
     const templates = await loadRealTemplates();
-    expect(loadProductionTemplates(templates)).toEqual([]);
+    expect(loadProductionTemplates(templates)).toHaveLength(2); // D031
     expect(
-      loadDevelopmentTemplates(templates, { includeStatuses: ENGINEERING_READY_ONLY }),
+      loadDevelopmentTemplates(templates, { includeStatuses: DEVELOPMENT_STATUSES }),
     ).toHaveLength(3);
   });
 
@@ -196,7 +199,7 @@ describe("createShotStore — resetToTemplate", () => {
     // Session created from v3, but current content only has v4.
     const store = createShotStore({
       templates: [templateV4],
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
       generateId: createSequenceIdFactory("stale"),
     });
     // Seed the store with a v3 state directly (simulating a restored session).
