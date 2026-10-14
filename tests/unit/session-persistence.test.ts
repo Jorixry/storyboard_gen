@@ -80,7 +80,7 @@ async function otsState(id: string): Promise<ShotState> {
   return createShotStateFromTemplate(template, { generateId: () => id });
 }
 
-const ENGINEERING_READY_ONLY = ["engineering_ready"] as const;
+const DEVELOPMENT_STATUSES = ["engineering_ready", "approved"] as const;
 
 describe("readPersistedSession", () => {
   it("restores a valid persisted session including the ShotState ID", async () => {
@@ -134,27 +134,32 @@ describe("readPersistedSession", () => {
   });
 
   it("NEGATIVE: refuses a schema-valid but FORGED approved reviewStatus", async () => {
-    const state = await otsState("forged-1");
+    // D031 made the OTS pair genuinely approved, so the forgery probe uses the
+    // still-engineering_ready medium template: an approved claim there passes
+    // codec and schema (approved is a legal enum value); only the
+    // compiled-content cross-check can catch it.
+    const templates = await realTemplates();
+    const template = templates.find((t) => t.id === "dialogue_medium_two_shot")!;
+    const state = createShotStateFromTemplate(template, { generateId: () => "forged-1" });
     const forged = {
       ...state,
       template: { ...state.template, reviewStatus: "approved" as const },
     };
-    // The forged state passes codec and schema (approved is a legal enum
-    // value); only the compiled-content cross-check can catch it.
     const storage = memoryStorage({ [SESSION_STORAGE_KEY]: serializeSession(forged) });
-    expect(readPersistedSession(storage, await realTemplates())).toBeNull();
+    expect(readPersistedSession(storage, templates)).toBeNull();
     expect(storage.dump()[SESSION_STORAGE_KEY]).toBeUndefined();
   });
 
   it("NEGATIVE: refuses a session whose reviewStatus drifted from the compiled content", async () => {
-    const state = await otsState("drifted-1"); // engineering_ready
+    const state = await otsState("drifted-1"); // approved since D031
     const storage = memoryStorage({ [SESSION_STORAGE_KEY]: serializeSession(state) });
-    // Universe where that template has since become approved: the persisted
-    // engineering_ready session no longer matches and is not restored.
-    const promoted = (await realTemplates()).map((t) =>
-      t.id === "dialogue_ots_a_to_b" ? { ...t, reviewStatus: "approved" as const } : t,
+    // Universe where that template has since been demoted to
+    // engineering_ready: the persisted approved session no longer matches and
+    // is not restored.
+    const demoted = (await realTemplates()).map((t) =>
+      t.id === "dialogue_ots_a_to_b" ? { ...t, reviewStatus: "engineering_ready" as const } : t,
     );
-    expect(readPersistedSession(storage, promoted)).toBeNull();
+    expect(readPersistedSession(storage, demoted)).toBeNull();
     expect(storage.dump()[SESSION_STORAGE_KEY]).toBeUndefined();
   });
 
@@ -230,7 +235,7 @@ describe("persistSession — full ShotState validation before any write", () => 
     const storage = memoryStorage();
     const store = createShotStore({
       templates,
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
     });
     const detach = attachSessionPersistence(store, { storage, templates });
     try {
@@ -257,7 +262,7 @@ describe("attachSessionPersistence", () => {
     const storage = memoryStorage({ [SESSION_STORAGE_KEY]: serializeSession(state) });
     const store = createShotStore({
       templates,
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
       generateId: createSequenceIdFactory("attach"),
     });
 
@@ -272,7 +277,7 @@ describe("attachSessionPersistence", () => {
         shotState: ShotState;
       };
       expect(saved.shotState.id).toBe("hydrate-1");
-      expect(saved.shotState.camera.position[2]).toBeCloseTo(1.6, 10);
+      expect(saved.shotState.camera.position[2]).toBeCloseTo(0.6, 10); // D029 OTS v3 pose
 
       // A template re-selection persists the NEW id as well.
       store.getState().selectTemplate("dialogue_medium_two_shot");
@@ -289,7 +294,7 @@ describe("attachSessionPersistence", () => {
   it("marks the store hydrated even when nothing could be restored", async () => {
     const templates = await realTemplates();
     const storage = memoryStorage({ [SESSION_STORAGE_KEY]: "garbage" });
-    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const store = createShotStore({ templates, includeStatuses: DEVELOPMENT_STATUSES });
     const detach = attachSessionPersistence(store, { storage, templates });
     detach();
     expect(store.getState().hydrated).toBe(true);
@@ -301,7 +306,7 @@ describe("attachSessionPersistence", () => {
     const templates = await realTemplates();
     const state = await otsState("hydrate-2");
     const storage = memoryStorage({ [SESSION_STORAGE_KEY]: serializeSession(state) });
-    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const store = createShotStore({ templates, includeStatuses: DEVELOPMENT_STATUSES });
     const detach1 = attachSessionPersistence(store, { storage, templates });
     store.getState().selectTemplate("dialogue_medium_two_shot"); // id: default UUID
     const detach2 = attachSessionPersistence(store, { storage, templates });
@@ -319,7 +324,7 @@ describe("attachSessionPersistence", () => {
     const storage = memoryStorage();
     const store = createShotStore({
       templates,
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
       generateId: createSequenceIdFactory("detach"),
     });
     const detach = attachSessionPersistence(store, { storage, templates });
@@ -334,7 +339,7 @@ describe("attachSessionPersistence — status reporting (P2-1 fix)", () => {
     const templates = await realTemplates();
     const state = await otsState("status-restore");
     const storage = memoryStorage({ [SESSION_STORAGE_KEY]: serializeSession(state) });
-    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const store = createShotStore({ templates, includeStatuses: DEVELOPMENT_STATUSES });
     const statuses: PersistenceOutcome[] = [];
     const detach = attachSessionPersistence(store, {
       storage,
@@ -349,7 +354,7 @@ describe("attachSessionPersistence — status reporting (P2-1 fix)", () => {
   it("reports saved after a new canonical ShotState is written", async () => {
     const templates = await realTemplates();
     const storage = trackedStorage();
-    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const store = createShotStore({ templates, includeStatuses: DEVELOPMENT_STATUSES });
     const statuses: PersistenceOutcome[] = [];
     const detach = attachSessionPersistence(store, {
       storage,
@@ -368,7 +373,7 @@ describe("attachSessionPersistence — status reporting (P2-1 fix)", () => {
 
   it("reports unavailable for null storage, keeps the session memory-only and never writes", async () => {
     const templates = await realTemplates();
-    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const store = createShotStore({ templates, includeStatuses: DEVELOPMENT_STATUSES });
     const statuses: PersistenceOutcome[] = [];
     const detach = attachSessionPersistence(store, {
       storage: null,
@@ -394,7 +399,7 @@ describe("attachSessionPersistence — status reporting (P2-1 fix)", () => {
     const previous = await otsState("status-previous");
     const storage = trackedStorage({ [SESSION_STORAGE_KEY]: serializeSession(previous) });
     storage.failWritesFor(SESSION_STORAGE_KEY);
-    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const store = createShotStore({ templates, includeStatuses: DEVELOPMENT_STATUSES });
     const statuses: PersistenceOutcome[] = [];
     const detach = attachSessionPersistence(store, {
       storage,
@@ -426,7 +431,7 @@ describe("attachSessionPersistence — status reporting (P2-1 fix)", () => {
   it("reports exactly once per state change and tolerates a store-touching callback (no duplicate saves, no recursion)", async () => {
     const templates = await realTemplates();
     const storage = trackedStorage();
-    const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+    const store = createShotStore({ templates, includeStatuses: DEVELOPMENT_STATUSES });
     const statuses: PersistenceOutcome[] = [];
     const detach = attachSessionPersistence(store, {
       storage,
@@ -466,7 +471,7 @@ describe("attachSessionPersistence — status reporting (P2-1 fix)", () => {
 
     for (const raw of ["{malformed", future, schemaInvalid]) {
       const storage = memoryStorage({ [SESSION_STORAGE_KEY]: raw });
-      const store = createShotStore({ templates, includeStatuses: ENGINEERING_READY_ONLY });
+      const store = createShotStore({ templates, includeStatuses: DEVELOPMENT_STATUSES });
       const statuses: PersistenceOutcome[] = [];
       const detach = attachSessionPersistence(store, {
         storage,

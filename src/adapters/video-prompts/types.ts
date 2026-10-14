@@ -21,6 +21,13 @@ export interface CompiledPromptSource {
   shotStateId: string;
   /** schemaVersion of that ShotState. */
   shotStateSchemaVersion: number;
+  /**
+   * Full-state canonical fingerprint of the exact ShotState content the prompt
+   * was compiled from (Prompt 8 acceptance fix R3, 2026-10-14). The ID alone
+   * cannot detect same-shot edits — every same-source verification must
+   * compare THIS value against the frozen state's fingerprint.
+   */
+  stateFingerprint: string;
   templateId: string;
   templateVersion: number;
   templateReviewStatus: string;

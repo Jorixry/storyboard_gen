@@ -19,6 +19,7 @@ import {
 import { normalizeShotState } from "../../src/domain/prompt-normalization";
 import {
   createShotStateFromTemplate,
+  shotStateFingerprint,
   shotStateSchema,
   type ShotState,
 } from "../../src/domain/shot-state";
@@ -104,9 +105,10 @@ describe("GenericVideoPromptAdapter golden snapshots", () => {
   });
 
   it("produces the exact deterministic warnings (order included) for dialogue_ots_a_to_b", async () => {
+    // D031: the template is approved, so the reviewStatus warning is gone; an
+    // engineering template (medium) still produces it (asserted below).
     const result = await compileState(await stateFromTemplate("dialogue_ots_a_to_b"));
     expect(result.warnings).toEqual([
-      'template: reviewStatus "engineering_ready" is not "approved"; directing semantics are engineering-derived and not professionally verified',
       "adapter-config: allowLlmPolish=true but LLM polish is not implemented; output is deterministic text only (llmMayChange: wording, grammar)",
       "semantics: 11 token(s) have no generic-adapter interpretation; rendered verbatim without invented meaning " +
         "(subjects[1]=character_a_shoulder_soft_foreground, composition[0]=over_the_shoulder, " +
@@ -115,6 +117,13 @@ describe("GenericVideoPromptAdapter golden snapshots", () => {
         "continuity[0]=maintain_axis, continuity[1]=preserve_eyeline, continuity[2]=foreground_shoulder_frame, " +
         "continuity[3]=matched_reverse_pair)",
     ]);
+  });
+
+  it("still warns the reviewStatus mismatch for engineering_ready templates (medium)", async () => {
+    const result = await compileState(await stateFromTemplate("dialogue_medium_two_shot"));
+    expect(result.warnings[0]).toBe(
+      'template: reviewStatus "engineering_ready" is not "approved"; directing semantics are engineering-derived and not professionally verified',
+    );
   });
 
   it("renders the semantics block in the exact format of the committed semantic-reference fixture", async () => {
@@ -133,7 +142,11 @@ describe("GenericVideoPromptAdapter golden snapshots", () => {
       "not tuned for and not claiming support of any specific video model",
     );
     expect(result.prompt.toLowerCase()).not.toContain("seedance");
-    expect(result.prompt).toContain("NOT professionally verified");
+    // D031: the OTS template is approved, so its prompt no longer carries the
+    // engineering-derived disclaimer; an engineering template still does.
+    expect(result.prompt).not.toContain("NOT professionally verified");
+    const engineering = await compileState(await stateFromTemplate("dialogue_medium_two_shot"));
+    expect(engineering.prompt).toContain("NOT professionally verified");
   });
 });
 
@@ -148,9 +161,12 @@ describe("GenericVideoPromptAdapter metadata and determinism", () => {
     expect(result.source).toEqual({
       shotStateId: FIXED_ID,
       shotStateSchemaVersion: 1,
+      // Full-state fingerprint (R3): proves the prompt matches this exact
+      // state content, not just the id/template identity.
+      stateFingerprint: shotStateFingerprint(state),
       templateId: "dialogue_ots_b_to_a",
-      templateVersion: 2, // OTS bumped to v2 by the D025 75mm change
-      templateReviewStatus: "engineering_ready",
+      templateVersion: 3, // OTS bumped to v3 by the D029 camera reposition
+      templateReviewStatus: "approved", // D031 written approval 2026-10-11
     });
   });
 
@@ -216,7 +232,7 @@ describe("GenericVideoPromptAdapter metadata and determinism", () => {
 describe("GenericVideoPromptAdapter fact reflection", () => {
   it("reflects camera position, target, focal, character placement, yaw and aspect edits", async () => {
     let state = await stateFromTemplate("dialogue_ots_a_to_b");
-    state = makeCloser(state); // [-0.84, 1.67, 1.6] for this template (20% toward target)
+    state = makeCloser(state); // [-1.55, 1.47, 0.6] for this template (20% toward target)
     state = setCameraTarget(state, [0.6, 1.55, 0]);
     state = setCameraFocalLength(state, 85);
     state = setCharacterPosition(state, "character_b", [0.6, 0, 0.2]);
@@ -225,7 +241,9 @@ describe("GenericVideoPromptAdapter fact reflection", () => {
 
     const result = await compileState(state);
     // Full state precision: makeCloser's exact lerp result, unrounded.
-    expect(result.prompt).toContain("camera.current: position=[-0.8400000000000001, 1.67, 1.6]");
+    expect(result.prompt).toContain(
+      "camera.current: position=[-1.5499999999999998, 1.47, 0.6000000000000001]",
+    );
     expect(result.prompt).toContain("target=[0.6, 1.55, 0]");
     expect(result.prompt).toContain("focal=85mm");
     expect(result.prompt).toContain("character_b position=[0.6, 0, 0.2]");
@@ -236,12 +254,14 @@ describe("GenericVideoPromptAdapter fact reflection", () => {
   it("keeps the current camera, movement start and movement end as three distinct facts", async () => {
     const edited = makeCloser(await stateFromTemplate("dialogue_ots_a_to_b"));
     const result = await compileState(edited);
-    expect(result.prompt).toContain("camera.current: position=[-0.8400000000000001, 1.67, 1.6]");
-    expect(result.prompt).toContain("movement.start: position=[-1.25, 1.7, 2]");
-    expect(result.prompt).toContain("movement.end: position=[-1.05, 1.68, 1.4]");
+    expect(result.prompt).toContain(
+      "camera.current: position=[-1.5499999999999998, 1.47, 0.6000000000000001]",
+    );
+    expect(result.prompt).toContain("movement.start: position=[-2.15, 1.45, 0.8]");
+    expect(result.prompt).toContain("movement.end: position=[-1.95, 1.43, 0.2]");
     // None of the movement poses was clobbered by the current-pose edit.
     expect(result.prompt).not.toContain(
-      "movement.start: position=[-0.8400000000000001, 1.67, 1.6]",
+      "movement.start: position=[-1.5499999999999998, 1.47, 0.6000000000000001]",
     );
   });
 

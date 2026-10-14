@@ -46,9 +46,9 @@ describe("applyShotCameraToPerspectiveCamera", () => {
     const camera = new PerspectiveCamera();
     applyShotCameraToPerspectiveCamera(camera, descriptor, aspectRatioToNumber("16:9"));
 
-    expect(camera.position.x).toBeCloseTo(-1.25, 12);
-    expect(camera.position.y).toBeCloseTo(1.7, 12);
-    expect(camera.position.z).toBeCloseTo(2, 12);
+    expect(camera.position.x).toBeCloseTo(-2.15, 12);
+    expect(camera.position.y).toBeCloseTo(1.45, 12);
+    expect(camera.position.z).toBeCloseTo(0.8, 12);
     // Film-gate FOV for the 75mm OTS default on a 16:9 36mm long-edge gate —
     // not the focal value.
     expect(camera.fov).toBeCloseTo(15.376895539805746, 9);
@@ -106,11 +106,11 @@ describe("applyShotCameraToPerspectiveCamera", () => {
     expect(direction.x).toBeLessThan(0); // target at negative X from positive-X position
   });
 
-  it("frames the fixture exactly: character_b centered, character_a outside the 16:9 frame edge", async () => {
-    // Ground truth for the rendered camera view (see docs/OPEN_QUESTIONS.md):
-    // at the current engineering-mapped pose the OTS foreground shoulder
-    // (character_a) falls outside the frame; the stage must render the
-    // canonical numbers faithfully rather than "fix" the blocking.
+  it("frames the fixture exactly: character_b primary near center, character_a foreground inside the left frame edge", async () => {
+    // Ground truth for the rendered camera view (docs/DECISIONS.md D029): the
+    // director-calibrated v3 pose brings the OTS foreground shoulder
+    // (character_a) back INSIDE the frame edge; the stage must still render
+    // the canonical numbers faithfully rather than "improve" the blocking.
     const state = await otsState();
     const camera = new PerspectiveCamera();
     applyShotCameraToPerspectiveCamera(
@@ -120,15 +120,17 @@ describe("applyShotCameraToPerspectiveCamera", () => {
     );
 
     const bHead = projectPoint(camera, [0.8, 1.56, 0]);
-    expect(bHead.x).toBeCloseTo(0, 6); // look-at target sits at frame center
-    // NDC head offset at the 75mm (D025) default: narrower FOV, so the head
-    // sits higher above frame center than the former 50mm value (0.017).
-    expect(bHead.y).toBeCloseTo(0.025797798975600326, 3);
+    // The look-at target (0.85, 1.55, -0.2) sits at frame center; B's head is
+    // offset from it at the 75mm (D025) default.
+    expect(bHead.x).toBeCloseTo(0.23732659286666055, 6);
+    expect(bHead.y).toBeCloseTo(0.032732405135785826, 6);
     expect(Math.abs(bHead.x)).toBeLessThan(1);
 
     const aHead = projectPoint(camera, [-0.8, 1.56, 0]);
-    expect(aHead.x).toBeLessThan(-1); // outside the left frame edge
+    expect(aHead.x).toBeGreaterThan(-1); // inside the left frame edge (D029 foreground)
+    expect(aHead.x).toBeLessThan(0); // on the foreground side (screen left)
     const aShoulder = projectPoint(camera, [-0.6, 1.45, 0]);
-    expect(aShoulder.x).toBeLessThan(-1);
+    expect(aShoulder.x).toBeGreaterThan(-1);
+    expect(aShoulder.x).toBeLessThan(0);
   });
 });

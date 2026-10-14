@@ -17,7 +17,7 @@ import { DirectorStage, type DirectorStageView } from "@/features/rendering/Dire
 import { resolveDevelopmentFixture } from "@/features/rendering/development-fixture";
 
 const DEVELOPMENT_FIXTURE_TEMPLATE_ID = "dialogue_ots_a_to_b";
-const DEVELOPMENT_FIXTURE_INCLUDE_STATUSES = ["engineering_ready"] as const;
+const DEVELOPMENT_FIXTURE_INCLUDE_STATUSES = ["engineering_ready", "approved"] as const;
 
 const VIEW_HELP: Record<DirectorStageView, string> = {
   director:
@@ -50,7 +50,9 @@ export default function DirectorStagePage() {
         <div className="director-stage-badges">
           <span className="badge-development-fixture">DEVELOPMENT FIXTURE</span>
           <span className="badge-review-status">
-            {template.reviewStatus} · not director approved
+            {template.reviewStatus === "approved"
+              ? "approved · director approved (2026-10-11 written approval)"
+              : `${template.reviewStatus} · not director approved`}
           </span>
           <span className="badge-template-id">
             {template.id} v{template.version}

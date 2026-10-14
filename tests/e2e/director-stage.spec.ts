@@ -23,9 +23,9 @@ interface StageSnapshot {
   drawingBuffer: { width: number; height: number };
 }
 
-/** Canonical ShotState values of the dialogue_ots_a_to_b development fixture. */
-const SHOT_CAMERA_POSITION: [number, number, number] = [-1.25, 1.7, 2];
-const SHOT_CAMERA_TARGET: [number, number, number] = [0.8, 1.55, 0];
+/** Canonical ShotState values of the dialogue_ots_a_to_b development fixture (v3 / D029). */
+const SHOT_CAMERA_POSITION: [number, number, number] = [-2.15, 1.45, 0.8];
+const SHOT_CAMERA_TARGET: [number, number, number] = [0.85, 1.55, -0.2];
 const SHOT_CAMERA_VFOV_DEG = 15.376895539805746; // 2*atan(20.25/150), 16:9 gate, 75mm (D025)
 const INSPECTION_CAMERA_POSITION: [number, number, number] = [2.7, 2.3, 4.1];
 
@@ -58,12 +58,14 @@ async function waitForStageView(
   return readSnapshot(page);
 }
 
-test("director stage labels the engineering_ready development fixture", async ({ page }) => {
+test("director stage labels the approved development fixture (D031)", async ({ page }) => {
   await page.goto("/director");
   await expect(page.getByRole("heading", { name: "Director Stage" })).toBeVisible();
   await expect(page.getByText("DEVELOPMENT FIXTURE", { exact: true })).toBeVisible();
-  await expect(page.getByText("engineering_ready · not director approved")).toBeVisible();
-  await expect(page.getByText("dialogue_ots_a_to_b v2")).toBeVisible();
+  await expect(
+    page.getByText("approved · director approved (2026-10-11 written approval)"),
+  ).toBeVisible();
+  await expect(page.getByText("dialogue_ots_a_to_b v3")).toBeVisible();
   await expect(page.getByText(/75mm \(vFOV 15\.38°\) · 16:9/)).toBeVisible();
 });
 

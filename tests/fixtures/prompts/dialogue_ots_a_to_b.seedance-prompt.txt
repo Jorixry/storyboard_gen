@@ -1,0 +1,15 @@
+seedance-prompt: engineering-derived target-model draft (Seedance, D026 provisional); NOT claiming official Seedance support
+source: shot-state=shot-prompt8-ots-a-to-b state-schema=v1 template=dialogue_ots_a_to_b@v3 review-status=approved adapter=seedance_video@1.0.0 adapter-config=v1
+note: compiled deterministically from the canonical ShotState following the official prompt guidance surveyed in docs/Seedance-API-调研报告-2026-09-14.md (Shot-structured, descriptive camera language, one main camera movement, no parametrized focal/ISO/f-number); template review status is approved
+protected-facts (must survive any later polish): character_identity, character_position, camera_geometry, focal_length, movement_type, continuity_rules
+engineering note: camera geometry, focal length and coordinates are deliberately NOT written as parametrized numbers (official guidance); they are carried by the exported composition/movement reference images and shot-state.json in this package
+
+画面: 单镜头，画幅 16:9，时长约 4 秒
+Shot 1: 镜头缓慢推近被摄主体（slow dolly in）
+主体: 角色A（character_a） 与 角色B（character_b），双人对话场景（dialogue_room）
+
+subjects: character_b_primary; character_a_shoulder_soft_foreground
+composition: over_the_shoulder; character_a_shoulder_left_foreground; character_b_chest_up_framing; eyes_upper_third
+optics: medium_close_up; focal_75mm; soft_foreground
+motion: subtle_dolly_in
+continuity: maintain_axis; preserve_eyeline; foreground_shoulder_frame; matched_reverse_pair

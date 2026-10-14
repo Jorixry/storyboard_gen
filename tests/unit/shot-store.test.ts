@@ -7,13 +7,13 @@ import type { ShotTemplate } from "@/domain/shot-template";
 import { createShotStore, NoShotStateError, UnknownTemplateError } from "@/state/shot-store";
 import { loadRealTemplates } from "../helpers/content-test-utils";
 
-const ENGINEERING_READY_ONLY = ["engineering_ready"] as const;
+const DEVELOPMENT_STATUSES = ["engineering_ready", "approved"] as const;
 
 async function realStore() {
   const templates = await loadRealTemplates();
   const store = createShotStore({
     templates,
-    includeStatuses: ENGINEERING_READY_ONLY,
+    includeStatuses: DEVELOPMENT_STATUSES,
     generateId: createSequenceIdFactory("store"),
   });
   return { store, templates };
@@ -33,8 +33,8 @@ describe("createShotStore — template selection through the development opt-in"
     expect(first.id).toBe("store-1");
     expect(first.template).toEqual({
       id: "dialogue_ots_a_to_b",
-      version: 2, // OTS v2 (D025 75mm)
-      reviewStatus: "engineering_ready",
+      version: 3, // OTS v3 (D029 camera reposition; v2 was D025 75mm)
+      reviewStatus: "approved", // D031 written approval 2026-10-11
     });
     expect(first.characters.map((c) => c.id).sort()).toEqual(["character_a", "character_b"]);
 
@@ -43,27 +43,30 @@ describe("createShotStore — template selection through the development opt-in"
     expect(store.getState().shotState!.id).not.toBe(first.id);
   });
 
-  it("rejects unknown template ids and refuses approved-only access to engineering content", async () => {
+  it("rejects unknown template ids; approved-only access loads the OTS pair but never the engineering medium", async () => {
     const templates = await loadRealTemplates();
     const store = createShotStore({
       templates,
-      includeStatuses: ENGINEERING_READY_ONLY,
+      includeStatuses: DEVELOPMENT_STATUSES,
     });
     expect(() => store.getState().selectTemplate("dialogue_ots_75mm_comparison")).toThrow(
       UnknownTemplateError,
     );
 
+    // D031: both OTS templates are approved, so an approved-only store loads
+    // them; the engineering_ready medium template stays invisible there.
     const approvedOnly = createShotStore({ templates, includeStatuses: ["approved"] });
-    expect(() => approvedOnly.getState().selectTemplate("dialogue_ots_a_to_b")).toThrow(
+    approvedOnly.getState().selectTemplate("dialogue_ots_a_to_b");
+    expect(() => approvedOnly.getState().selectTemplate("dialogue_medium_two_shot")).toThrow(
       UnknownTemplateError,
     );
   });
 
-  it("the production loader still returns zero templates for this content", async () => {
+  it("the production loader returns the two approved OTS templates for this content", async () => {
     const templates = await loadRealTemplates();
-    expect(loadProductionTemplates(templates)).toEqual([]);
+    expect(loadProductionTemplates(templates)).toHaveLength(2); // D031
     expect(
-      loadDevelopmentTemplates(templates, { includeStatuses: ENGINEERING_READY_ONLY }),
+      loadDevelopmentTemplates(templates, { includeStatuses: DEVELOPMENT_STATUSES }),
     ).toHaveLength(3);
   });
 
@@ -90,19 +93,19 @@ describe("createShotStore — command actions", () => {
     const before = store.getState().shotState!;
     store.getState().makeCloser();
     const closer = store.getState().shotState!;
-    expect(closer.camera.position[2]).toBeCloseTo(2.72, 10);
+    expect(closer.camera.position[2]).toBeCloseTo(1.2, 10);
     expect(closer.camera.target).toEqual(before.camera.target);
     expect(closer.movement).toBe(before.movement);
 
     store.getState().makeFarther();
-    expect(store.getState().shotState!.camera.position[2]).toBeCloseTo(3.264, 10);
+    expect(store.getState().shotState!.camera.position[2]).toBeCloseTo(1.44, 10);
   });
 
   it("emphasize and focal feel write their typed fields", async () => {
     const { store } = await realStore();
     store.getState().selectTemplate("dialogue_medium_two_shot");
     store.getState().emphasizeCharacter("character_b");
-    expect(store.getState().shotState!.camera.target[0]).toBeCloseTo(0.4, 10);
+    expect(store.getState().shotState!.camera.target[0]).toBeCloseTo(0.25, 10);
 
     store.getState().setFocalFeel("portrait");
     expect(store.getState().shotState!.camera.focalLengthMm).toBe(50);
@@ -162,10 +165,47 @@ describe("createShotStore — command actions", () => {
     expect(store.getState().shotState).toBe(before);
 
     // Degenerate direct transform:
-    expect(() => store.getState().setCameraTarget([0.01, 1.6, 3.4])).toThrow(
+    expect(() => store.getState().setCameraTarget([0.01, 1.62, 1.5])).toThrow(
       DegenerateCameraGeometryError,
     );
     expect(store.getState().shotState).toBe(before);
+  });
+});
+
+describe("createShotStore — stateEpoch lifecycle counter (R2)", () => {
+  it("starts at 0 and increments on selectTemplate (including re-selecting the same template)", async () => {
+    const { store } = await realStore();
+    expect(store.getState().stateEpoch).toBe(0);
+    store.getState().selectTemplate("dialogue_ots_a_to_b");
+    expect(store.getState().stateEpoch).toBe(1);
+    // Switching to a template whose focal equals the previous one must still
+    // bump the epoch — derived UI cannot rely on field values alone.
+    store.getState().selectTemplate("dialogue_ots_b_to_a");
+    expect(store.getState().stateEpoch).toBe(2);
+    store.getState().selectTemplate("dialogue_ots_b_to_a");
+    expect(store.getState().stateEpoch).toBe(3);
+  });
+
+  it("increments on resetToTemplate even though the ShotState ID is unchanged", async () => {
+    const { store } = await realStore();
+    store.getState().selectTemplate("dialogue_ots_a_to_b");
+    const idBefore = store.getState().shotState!.id;
+    expect(store.getState().stateEpoch).toBe(1);
+
+    store.getState().resetToTemplate();
+    expect(store.getState().shotState!.id).toBe(idBefore);
+    expect(store.getState().stateEpoch).toBe(2);
+  });
+
+  it("does NOT increment on ordinary field edits", async () => {
+    const { store } = await realStore();
+    store.getState().selectTemplate("dialogue_medium_two_shot");
+    expect(store.getState().stateEpoch).toBe(1);
+    store.getState().setFocalFeel("portrait");
+    store.getState().makeCloser();
+    store.getState().emphasizeCharacter("character_b");
+    store.getState().setCameraFocalLength(85);
+    expect(store.getState().stateEpoch).toBe(1);
   });
 });
 
@@ -183,26 +223,26 @@ describe("createShotStore — resetToTemplate", () => {
     const reset = store.getState().shotState!;
     expect(reset.id).toBe(idBeforeEdits);
     expect(reset.aspectRatio).toBe("16:9");
-    expect(reset.camera.focalLengthMm).toBe(75); // OTS v2 template default (D025)
-    expect(reset.camera.position).toEqual([-1.25, 1.7, 2]);
-    expect(reset.camera.target).toEqual([0.8, 1.55, 0]);
+    expect(reset.camera.focalLengthMm).toBe(75); // OTS v3 template default (D025/D029)
+    expect(reset.camera.position).toEqual([-2.15, 1.45, 0.8]);
+    expect(reset.camera.target).toEqual([0.85, 1.55, -0.2]);
     expect(reset.movement.start.focalLengthMm).toBe(75);
   });
 
   it("refuses reset when the session's template version no longer exists", async () => {
     const templates = await loadRealTemplates();
-    const templateV2 = templates.find((t) => t.id === "dialogue_ots_a_to_b")!; // real v2
-    const templateV3: ShotTemplate = { ...templateV2, version: 3 };
-    // Session created from v2, but current content only has v3.
+    const templateV3 = templates.find((t) => t.id === "dialogue_ots_a_to_b")!; // real v3
+    const templateV4: ShotTemplate = { ...templateV3, version: 4 };
+    // Session created from v3, but current content only has v4.
     const store = createShotStore({
-      templates: [templateV3],
-      includeStatuses: ENGINEERING_READY_ONLY,
+      templates: [templateV4],
+      includeStatuses: DEVELOPMENT_STATUSES,
       generateId: createSequenceIdFactory("stale"),
     });
-    // Seed the store with a v1 state directly (simulating a restored session).
+    // Seed the store with a v3 state directly (simulating a restored session).
     const { createShotStateFromTemplate } = await import("@/domain/shot-state");
     store.setState({
-      shotState: createShotStateFromTemplate(templateV2, {
+      shotState: createShotStateFromTemplate(templateV3, {
         generateId: createSequenceIdFactory("stale"),
       }),
     });

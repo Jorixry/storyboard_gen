@@ -137,6 +137,267 @@ export const rawExportManifestSchema = z.strictObject({
 
 export type RawExportManifest = z.infer<typeof rawExportManifestSchema>;
 
+/* ------------------------------------------------------------------------- */
+/* Full export package (Prompt 8 / Phase 2 §2.3 + Phase 3 Day 9)             */
+/* ------------------------------------------------------------------------- */
+
+export const FULL_EXPORT_MANIFEST_VERSION = 4;
+
+/**
+ * Exact filenames inside the FULL input package (the MVP_SCOPE "Outputs"
+ * bundle). Everything the raw export carries, both compiled prompts, the
+ * field-level template diff (v3), and an optional enhanced first frame whose
+ * extension follows the artifact's actual MIME type (mock results are SVG;
+ * provider results are raster).
+ */
+export const FULL_EXPORT_FILENAMES = {
+  shotState: "shot-state.json",
+  compositionRaw: "composition-raw.png",
+  movementStart: "movement-start.png",
+  movementEnd: "movement-end.png",
+  promptGeneric: "prompt-generic.txt",
+  promptTarget: "prompt-seedance.txt",
+  templateDiff: "template-diff.txt",
+  enhancedFirstFrameBases: [
+    "enhanced-first-frame.png",
+    "enhanced-first-frame.svg",
+    "enhanced-first-frame.jpeg",
+    "enhanced-first-frame.webp",
+  ] as const,
+  manifest: "manifest.json",
+} as const;
+
+/** Every file name the full package may contain (manifest.json excluded). */
+export const FULL_EXPORT_ARTIFACT_NAMES = [
+  "shot-state.json",
+  "composition-raw.png",
+  "movement-start.png",
+  "movement-end.png",
+  "prompt-generic.txt",
+  "prompt-seedance.txt",
+  "template-diff.txt",
+  ...FULL_EXPORT_FILENAMES.enhancedFirstFrameBases,
+] as const;
+
+export type FullExportArtifactName = (typeof FULL_EXPORT_ARTIFACT_NAMES)[number];
+
+const FULL_PROMPT_FILENAMES = z.enum(["prompt-generic.txt", "prompt-seedance.txt"]);
+const FULL_ENHANCED_FILENAMES = z.enum(FULL_EXPORT_FILENAMES.enhancedFirstFrameBases);
+
+const fullManifestArtifactSchema = z.strictObject({
+  name: z.enum(FULL_EXPORT_ARTIFACT_NAMES),
+  sha256: z.string().regex(SHA256_HEX_REGEX, {
+    message: "sha256 must be a lowercase 64-hex-digit digest",
+  }),
+  bytes: z.number().int().nonnegative(),
+});
+
+/** Adapter identity triple shared by the prompt and enhanced-frame records. */
+const adapterRefSchema = z.strictObject({
+  adapterId: z.string().min(1),
+  adapterVersion: z.string().min(1),
+  adapterConfigVersion: z.number().int().min(1).optional(),
+});
+
+/**
+ * SAFE, exportable generation-metadata keys for the enhanced first frame
+ * (Prompt 8 acceptance fix R1, 2026-10-14). These record the generation
+ * settings PRODUCT_SPEC requires every artifact to carry (actual model, size,
+ * watermark, reference counts...). The allowlist is deliberately explicit: no
+ * credentials, no raw server-environment values and no blindly repackaged
+ * unknown provider metadata ever enter the manifest. Adapter metadata keys
+ * outside this set (e.g. `endpoint`, `provider` — provider is already a
+ * top-level manifest field) are dropped at the export boundary.
+ */
+export const ENHANCED_FRAME_METADATA_KEYS = [
+  "signature",
+  "model",
+  "responseModel",
+  "outputFormat",
+  "responseSize",
+  "size",
+  "sizeSource",
+  "requestId",
+  "promptLengthBytes",
+  "compositionBytes",
+  "referenceCount",
+  "hasStyleReference",
+  "totalInputImages",
+  "watermark",
+] as const;
+
+export type EnhancedFrameMetadataKey = (typeof ENHANCED_FRAME_METADATA_KEYS)[number];
+
+export const enhancedFrameMetadataSchema = z.strictObject({
+  signature: z.string().optional(),
+  model: z.string().optional(),
+  responseModel: z.string().optional(),
+  outputFormat: z.string().optional(),
+  responseSize: z.string().optional(),
+  size: z.string().optional(),
+  sizeSource: z.string().optional(),
+  requestId: z.string().optional(),
+  promptLengthBytes: z.string().optional(),
+  compositionBytes: z.string().optional(),
+  referenceCount: z.string().optional(),
+  hasStyleReference: z.string().optional(),
+  totalInputImages: z.string().optional(),
+  watermark: z.string().optional(),
+});
+
+export type EnhancedFrameMetadata = z.infer<typeof enhancedFrameMetadataSchema>;
+
+/**
+ * Projects adapter-returned generation metadata onto the exportable allowlist.
+ * Unknown keys are dropped (never an error): a provider adding a new metadata
+ * key must not break the export, and un-vetted values must not be repackaged.
+ */
+export function exportableEnhancedFrameMetadata(
+  metadata: Record<string, string>,
+): EnhancedFrameMetadata {
+  const projected: Partial<Record<EnhancedFrameMetadataKey, string>> = {};
+  for (const key of ENHANCED_FRAME_METADATA_KEYS) {
+    const value = metadata[key];
+    if (typeof value === "string") {
+      projected[key] = value;
+    }
+  }
+  return enhancedFrameMetadataSchema.parse(projected);
+}
+
+const fullManifestFilesSchema = z.array(fullManifestArtifactSchema).superRefine((files, ctx) => {
+  const required: readonly string[] = [
+    "shot-state.json",
+    "composition-raw.png",
+    "movement-start.png",
+    "movement-end.png",
+    "prompt-generic.txt",
+    "prompt-seedance.txt",
+    "template-diff.txt",
+  ];
+  const names: string[] = files.map((file) => file.name);
+  const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+  if (duplicates.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: [],
+      message: `manifest files must not repeat entries; duplicated: ${[...new Set(duplicates)].join(", ")}`,
+    });
+    return;
+  }
+  const enhanced = names.filter((name) =>
+    (FULL_EXPORT_FILENAMES.enhancedFirstFrameBases as readonly string[]).includes(name),
+  );
+  if (enhanced.length > 1) {
+    ctx.addIssue({
+      code: "custom",
+      path: [],
+      message: `at most one enhanced-first-frame file may appear; found: ${enhanced.join(", ")}`,
+    });
+    return;
+  }
+  const missing = required.filter((name) => !names.includes(name));
+  const extra = names.filter(
+    (name) =>
+      !required.includes(name) &&
+      !(FULL_EXPORT_FILENAMES.enhancedFirstFrameBases as readonly string[]).includes(name),
+  );
+  if (missing.length > 0 || extra.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: [],
+      message:
+        `manifest files must be exactly the seven required artifacts plus at most one enhanced ` +
+        `first frame; missing: ${missing.length > 0 ? missing.join(", ") : "none"}; ` +
+        `unexpected: ${extra.length > 0 ? extra.join(", ") : "none"}`,
+    });
+  }
+});
+
+/**
+ * Executable, versioned, strict manifest schema for the FULL input package.
+ * Beyond the raw manifest it records BOTH prompt adapters and the enhanced
+ * frame's provenance, so a reviewer can verify every artifact points at the
+ * same state/template/adapter versions without opening the files.
+ */
+export const fullExportManifestSchema = z.strictObject({
+  kind: z.literal("storyboard-director-full-export"),
+  manifestVersion: z.literal(FULL_EXPORT_MANIFEST_VERSION),
+  generatedAt: iso8601UtcSchema,
+  shotState: z.strictObject({
+    id: z.string().min(1),
+    schemaVersion: z.literal(SHOT_STATE_SCHEMA_VERSION),
+    template: z.strictObject({
+      id: templateIdSchema,
+      version: z.number().int().min(1),
+      reviewStatus: reviewStatusSchema,
+    }),
+    aspectRatio: aspectRatioSchema,
+  }),
+  movement: z.strictObject({
+    type: movementTypeSchema,
+    durationSeconds: z.number().finite().min(0.5).max(20),
+    easing: easingSchema,
+  }),
+  prompts: z.strictObject({
+    generic: adapterRefSchema.extend({
+      fileName: FULL_PROMPT_FILENAMES,
+      /**
+       * The compiler warnings for this prompt, verbatim and in deterministic
+       * emission order (Prompt 8 acceptance fix R4, 2026-10-14) — the
+       * per-fact diagnostics (semantic conflicts, movement inconsistencies,
+       * uninterpreted tokens) a reviewer needs next to the prompt text.
+       */
+      warnings: z.array(z.string()),
+    }),
+    target: adapterRefSchema.extend({
+      fileName: FULL_PROMPT_FILENAMES,
+      warnings: z.array(z.string()),
+    }),
+  }),
+  enhancedFrame: z.union([
+    z.strictObject({
+      included: z.literal(true),
+      fileName: FULL_ENHANCED_FILENAMES,
+      adapter: adapterRefSchema,
+      provider: z.string().min(1),
+      /** Canonical fingerprint of the ShotState the frame was generated from. */
+      sourceFingerprint: z.string().min(1),
+      /**
+       * Safe generation settings the frame was produced with (allowlisted;
+       * see ENHANCED_FRAME_METADATA_KEYS). Always present when included —
+       * possibly an empty object for an adapter that reported nothing safe.
+       */
+      metadata: enhancedFrameMetadataSchema,
+    }),
+    z.strictObject({
+      included: z.literal(false),
+      reason: z.enum(["absent", "stale"]),
+    }),
+  ]),
+  files: fullManifestFilesSchema,
+});
+
+export type FullExportManifest = z.infer<typeof fullExportManifestSchema>;
+
+/** Maps an enhanced-frame MIME type to the packaged filename. */
+export function enhancedFirstFrameFileName(
+  mimeType: string,
+): (typeof FULL_EXPORT_FILENAMES.enhancedFirstFrameBases)[number] {
+  switch (mimeType) {
+    case "image/png":
+      return "enhanced-first-frame.png";
+    case "image/svg+xml":
+      return "enhanced-first-frame.svg";
+    case "image/jpeg":
+      return "enhanced-first-frame.jpeg";
+    case "image/webp":
+      return "enhanced-first-frame.webp";
+    default:
+      throw new Error(`unsupported enhanced-frame mime type "${mimeType}"`);
+  }
+}
+
 /** Deterministic export raster: long edge 1280 px, dpr 1, aspect-exact. */
 export const EXPORT_IMAGE_LONG_EDGE_PX = 1280;
 

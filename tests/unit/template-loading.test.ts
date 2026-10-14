@@ -50,11 +50,17 @@ function templateWithStatus(id: string, reviewStatus: ShotTemplate["reviewStatus
 }
 
 describe("production loader boundary", () => {
-  it("returns zero templates for the current real content (all engineering_ready)", async () => {
+  it("returns exactly the two approved OTS templates for the current real content", async () => {
+    // Since D031 (2026-10-11 written approval) both OTS v3 templates are
+    // approved; dialogue_medium_two_shot stays engineering_ready.
     const templates = await loadRealTemplates();
     expect(templates).toHaveLength(3);
     const production = loadProductionTemplates(templates);
-    expect(production).toEqual([]);
+    expect(production.map((template) => template.id)).toEqual([
+      "dialogue_ots_a_to_b",
+      "dialogue_ots_b_to_a",
+    ]);
+    expect(production.every((template) => template.reviewStatus === "approved")).toBe(true);
   });
 
   it("excludes every reviewStatus except approved", () => {
@@ -82,13 +88,12 @@ describe("production loader boundary", () => {
 });
 
 describe("development/test loader boundary", () => {
-  it("loads the three engineering_ready templates only with an explicit opt-in", async () => {
+  it("loads all three templates only with an explicit opt-in for both statuses", async () => {
     const templates = await loadRealTemplates();
     const loaded = loadDevelopmentTemplates(templates, {
-      includeStatuses: ["engineering_ready"],
+      includeStatuses: ["engineering_ready", "approved"],
     });
     expect(loaded).toHaveLength(3);
-    expect(loaded.every((template) => template.reviewStatus === "engineering_ready")).toBe(true);
     expect(loaded.map((template) => template.id)).toEqual([
       "dialogue_medium_two_shot",
       "dialogue_ots_a_to_b",
@@ -96,15 +101,27 @@ describe("development/test loader boundary", () => {
     ]);
   });
 
+  it("an engineering_ready-only opt-in loads just the medium template today", async () => {
+    // After D031 only dialogue_medium_two_shot is still engineering_ready.
+    const templates = await loadRealTemplates();
+    const loaded = loadDevelopmentTemplates(templates, {
+      includeStatuses: ["engineering_ready"],
+    });
+    expect(loaded.map((template) => template.id)).toEqual(["dialogue_medium_two_shot"]);
+  });
+
   it("loads nothing without an explicit status list (no implicit defaults)", async () => {
     const templates = await loadRealTemplates();
     expect(loadDevelopmentTemplates(templates, { includeStatuses: [] })).toEqual([]);
   });
 
-  it("does not leak engineering_ready templates through an approved-only request", async () => {
+  it("an approved-only request returns the OTS pair and never leaks engineering content", async () => {
     const templates = await loadRealTemplates();
     const loaded = loadDevelopmentTemplates(templates, { includeStatuses: ["approved"] });
-    expect(loaded).toEqual([]);
+    expect(loaded.map((template) => template.id)).toEqual([
+      "dialogue_ots_a_to_b",
+      "dialogue_ots_b_to_a",
+    ]);
   });
 
   it("honors exactly the statuses that are named", () => {
@@ -123,7 +140,9 @@ describe("development/test loader boundary", () => {
 describe("loader determinism", () => {
   it("returns templates sorted by id regardless of input order", async () => {
     const templates = (await loadRealTemplates()).slice().reverse();
-    const loaded = loadDevelopmentTemplates(templates, { includeStatuses: ["engineering_ready"] });
+    const loaded = loadDevelopmentTemplates(templates, {
+      includeStatuses: ["engineering_ready", "approved"],
+    });
     expect(loaded.map((template) => template.id)).toEqual([
       "dialogue_medium_two_shot",
       "dialogue_ots_a_to_b",

@@ -24,6 +24,7 @@ import { verticalFovDeg } from "@/domain/camera-math";
 import { interpolateCameraPose } from "@/domain/movement";
 import { TransformRefinement } from "@/features/director-stage/TransformRefinement";
 import { EnhancedFrame } from "@/features/enhanced-frame/EnhancedFrame";
+import { FullExport } from "@/features/export-package/FullExport";
 import { RawExport } from "@/features/export-package/RawExport";
 import { DirectorStage, type DirectorStageView } from "@/features/rendering/DirectorStage";
 import {
@@ -39,7 +40,7 @@ import {
   type PersistenceStatus,
 } from "@/state/session-persistence";
 
-const DEVELOPMENT_INCLUDE_STATUSES = ["engineering_ready"] as const;
+const DEVELOPMENT_INCLUDE_STATUSES = ["engineering_ready", "approved"] as const;
 
 /** Non-canonical footer copy keyed by the real persistence outcome. */
 const PERSISTENCE_STATUS_COPY: Record<PersistenceStatus, string> = {
@@ -62,7 +63,7 @@ export default function Home() {
       }),
     [],
   );
-  // Production boundary evidence shown in the header: still zero today.
+  // Production boundary evidence shown in the header: the approved count.
   const productionTemplateCount = useMemo(
     () => loadProductionTemplates(COMPILED_SHOT_TEMPLATES).length,
     [],
@@ -115,7 +116,9 @@ export default function Home() {
         <h1>Storyboard Director MVP — 导演工作台</h1>
         <div className="studio-badges">
           <span className="badge-development-fixture">DEVELOPMENT WORKSPACE</span>
-          <span className="badge-review-status">engineering_ready · not director approved</span>
+          <span className="badge-review-status">
+            review status per template（approved / engineering_ready）
+          </span>
           <span className="badge-production-count" data-testid="production-template-count">
             production gallery: {productionTemplateCount}
           </span>
@@ -136,11 +139,26 @@ export default function Home() {
       />
 
       {shotState === null ? (
-        <p className="studio-empty" data-testid="studio-empty">
-          {hydrated
-            ? "尚未选择模板。选择一个开发模板以创建 ShotState 并开始调整。"
-            : "正在恢复本地会话…"}
-        </p>
+        <div className="studio-empty-wrap">
+          <p className="studio-empty" data-testid="studio-empty">
+            {hydrated
+              ? "尚未选择模板。选择一个开发模板以创建 ShotState 并开始调整。"
+              : "正在恢复本地会话…"}
+          </p>
+          {hydrated && (
+            <div className="onboarding-steps" data-testid="onboarding-steps">
+              使用流程（桌面 Chrome，无需账号）：
+              <ol>
+                <li>在上方画廊选择一个对话镜头模板（当前为开发用工程模板）；</li>
+                <li>用"简单调整"做近视/远摄、主体强调、焦距感受与画幅等语义化修改；</li>
+                <li>按需展开"高级 3D 调整"微调相机/人物（受工程安全范围约束），并预览起止运镜；</li>
+                <li>
+                  导出 raw ZIP 或完整输入包（含双 prompt 与可选增强首帧），到外部视频平台使用。
+                </li>
+              </ol>
+            </div>
+          )}
+        </div>
       ) : (
         <section className="studio-workspace" data-testid="studio-workspace">
           <div className="studio-stage-pane">
@@ -206,6 +224,7 @@ export default function Home() {
             />
             <TransformRefinement onWarning={setWarning} />
             <RawExport />
+            <FullExport />
             <EnhancedFrame />
             <p className="command-warning" data-testid="command-warning" hidden={warning === ""}>
               {warning}

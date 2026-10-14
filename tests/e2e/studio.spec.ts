@@ -25,7 +25,7 @@ interface StageSnapshot {
 }
 
 /** Independently derived FOV constants (2*atan(verticalGate/(2*f)) in degrees). */
-// Template-default FOVs (OTS v2 executes at 75mm per D025).
+// Template-default FOVs (OTS v3 executes at 75mm per D025).
 const VFOV_75MM_169 = 15.376895539805746; // 2*atan(20.25/150), 16:9 gate
 // Focal-feel PRESET FOV (portrait preset = 50mm; engineering presets are
 // independent of template defaults).
@@ -33,8 +33,8 @@ const VFOV_50MM_169 = 22.895192527371208;
 const VFOV_75MM_916 = 26.991466561591626; // 2*atan(36/150), 9:16 gate
 
 /** Canonical template camera values (from the committed template YAML). */
-const OTS_A_TO_B_CAMERA: [number, number, number] = [-1.25, 1.7, 2];
-const MEDIUM_CAMERA: [number, number, number] = [0, 1.6, 3.4];
+const OTS_A_TO_B_CAMERA: [number, number, number] = [-2.15, 1.45, 0.8];
+const MEDIUM_CAMERA: [number, number, number] = [0, 1.62, 1.5];
 
 const SESSION_KEY = "storyboard-director.session.v1";
 
@@ -115,18 +115,24 @@ test("gallery shows the three clearly labeled development templates", async ({ p
     const card = cards.nth(index);
     await expect(card).toHaveAttribute("data-template-id", expectedIds[index]);
     await expect(card.getByText("DEVELOPMENT", { exact: true })).toBeVisible();
-    await expect(card.getByTestId("template-review-status")).toHaveText(
+    // Medium bumped to v2 by the D030 chest-up reframe; OTS templates are v3
+    // since the D029 camera reposition.
+    const expectedVersions = [2, 3, 3];
+    // D031: the OTS pair carries the 2026-10-11 written approval; the medium
+    // template stays engineering_ready.
+    const expectedStatuses = [
       "engineering_ready · not director approved",
-    );
-    // OTS templates are v2 since the D025 75mm change; the medium shot stays v1.
-    const expectedVersions = [1, 2, 2];
+      "approved · director approved",
+      "approved · director approved",
+    ];
     await expect(card.getByTestId("template-meta")).toContainText(
       `${expectedIds[index]} v${expectedVersions[index]}`,
     );
+    await expect(card.getByTestId("template-review-status")).toHaveText(expectedStatuses[index]);
     await expect(card.getByTestId("template-narrative-purpose")).not.toBeEmpty();
   }
-  // The production boundary stays visible: zero approved templates today.
-  await expect(page.getByTestId("production-template-count")).toHaveText("production gallery: 0");
+  // The production boundary stays visible: the two D031-approved templates.
+  await expect(page.getByTestId("production-template-count")).toHaveText("production gallery: 2");
 });
 
 test("gallery reference images load locally with zero external requests", async ({ page }) => {
@@ -154,7 +160,7 @@ test("selecting a different template updates ShotState metadata and the camera p
   await selectTemplate(page, "dialogue_medium_two_shot");
   await waitForReadyView(page, "director");
   await expect(page.getByTestId("footer-template")).toContainText(
-    "dialogue_medium_two_shot v1 · engineering_ready",
+    "dialogue_medium_two_shot v2 · engineering_ready",
   );
   await expect(page.getByTestId("footer-camera")).toContainText("35mm");
 
@@ -164,7 +170,7 @@ test("selecting a different template updates ShotState metadata and the camera p
 
   // Re-selecting a DIFFERENT template must drive the same stage immediately.
   await selectTemplate(page, "dialogue_ots_a_to_b");
-  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v2");
+  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v3");
   snapshot = await waitForSnapshot(
     page,
     (s) => s.view === "camera" && positionEquals(s.activeCamera.position, OTS_A_TO_B_CAMERA),
@@ -183,7 +189,7 @@ test("simple controls update the camera view immediately through canonical state
   expect(positionEquals(initial.activeCamera.position, MEDIUM_CAMERA)).toBe(true);
   const initialTargetDistance = Math.hypot(
     0 - initial.activeCamera.position[0],
-    1.55 - initial.activeCamera.position[1],
+    1.68 - initial.activeCamera.position[1],
     0 - initial.activeCamera.position[2],
   );
 
@@ -194,11 +200,11 @@ test("simple controls update the camera view immediately through canonical state
   );
   // 20% closer along the current position->target geometry; target unchanged.
   expect(closer.activeCamera.position[0]).toBeCloseTo(0, 6);
-  expect(closer.activeCamera.position[1]).toBeCloseTo(1.59, 6);
-  expect(closer.activeCamera.position[2]).toBeCloseTo(2.72, 6);
+  expect(closer.activeCamera.position[1]).toBeCloseTo(1.632, 6);
+  expect(closer.activeCamera.position[2]).toBeCloseTo(1.2, 6);
   const closerDistance = Math.hypot(
     0 - closer.activeCamera.position[0],
-    1.55 - closer.activeCamera.position[1],
+    1.68 - closer.activeCamera.position[1],
     0 - closer.activeCamera.position[2],
   );
   expect(closerDistance).toBeCloseTo(initialTargetDistance * 0.8, 6);
@@ -208,10 +214,10 @@ test("simple controls update the camera view immediately through canonical state
     page,
     (s) => !positionEquals(s.activeCamera.position, closer.activeCamera.position),
   );
-  expect(farther.activeCamera.position[2]).toBeCloseTo(3.264, 6);
+  expect(farther.activeCamera.position[2]).toBeCloseTo(1.44, 6);
 
   // Emphasis re-aims the target at the CURRENT character transforms
-  // (character_b stands at x=0.8; the target blends halfway to x=0.4).
+  // (character_b stands at x=0.5 (v2 blocking); the target blends halfway to x=0.25).
   // The camera POSITION stays put — the view DIRECTION is what changes.
   await page.getByTestId("control-emphasize-b").click();
   const emphasized = await waitForSnapshot(
@@ -222,8 +228,8 @@ test("simple controls update the camera view immediately through canonical state
   );
   const direction = emphasized.activeCamera.worldDirection;
   const toTarget = [
-    0.4 - emphasized.activeCamera.position[0],
-    1.55 - emphasized.activeCamera.position[1],
+    0.25 - emphasized.activeCamera.position[0],
+    1.68 - emphasized.activeCamera.position[1],
     0 - emphasized.activeCamera.position[2],
   ];
   const toTargetLength = Math.hypot(toTarget[0], toTarget[1], toTarget[2]);
@@ -299,7 +305,7 @@ test("constrained transforms update the canonical ShotState and the 3D preview",
   // The advanced panel is collapsed; expand it first.
   await page.getByTestId("advanced-refinement").locator("summary").click();
   await expect(posX).toBeVisible();
-  await expect(posX).toHaveValue("-1.25");
+  await expect(posX).toHaveValue("-2.15");
 
   // Every constrained input displays its unit and its exact numeric range
   // (the same values the commands clamp to).
@@ -337,17 +343,31 @@ test("constrained transforms update the canonical ShotState and the 3D preview",
   );
   expect(moved.activeCamera.position[0]).toBeCloseTo(1.5, 6);
 
-  // Out-of-range values are clamped to the provisional engineering box.
+  // Out-of-range input stays visible, is NOT written (canonical keeps the
+  // last valid value) and the warning persists until corrected (2026-10-11
+  // director-approved UX).
   await posX.fill("999");
-  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.position[0] - 2.9) < 1e-6);
-  await expect(posX).toHaveValue("2.9");
-  await expect(page.getByTestId("footer-camera")).toContainText("2.90");
+  await expect(posX).toHaveValue("999");
+  await expect(page.getByTestId("input-camera-position-x-warning")).toContainText(
+    "超出工程安全范围 -2.9–2.9，未写入（当前保留 1.5",
+  );
+  await expect(page.getByTestId("footer-camera")).toContainText("camera [1.50, 1.45, 0.80]");
+  await posX.fill("2.5");
+  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.position[0] - 2.5) < 1e-6);
+  await expect(page.getByTestId("input-camera-position-x-warning")).toHaveCount(0);
+  await expect(page.getByTestId("footer-camera")).toContainText("camera [2.50, 1.45, 0.80]");
 
-  // Focal length input clamps to the Schema range (500 -> 200mm).
+  // Focal input rejects out-of-range the same way (500 is never written);
+  // an in-range 50mm commits through the film-gate math.
   const focal = page.getByTestId("input-camera-focal-length");
   await focal.fill("500");
-  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - 5.796249337657643) < 1e-4);
-  await expect(focal).toHaveValue("200");
+  await expect(focal).toHaveValue("500");
+  await expect(page.getByTestId("input-camera-focal-length-warning")).toContainText(
+    "超出工程安全范围 12–200，未写入（当前保留 75",
+  );
+  await focal.fill("50");
+  await waitForSnapshot(page, (s) => Math.abs(s.activeCamera.fovDeg - 22.895192527371208) < 1e-4);
+  await expect(focal).toHaveValue("50");
 
   // Character transforms write the same canonical state (director view shows it).
   await page.getByTestId("view-toggle-director").click();
@@ -356,6 +376,53 @@ test("constrained transforms update the canonical ShotState and the 3D preview",
   await page.getByTestId("input-character_b-yaw").fill("270");
   await expect(page.getByTestId("footer-characters")).toContainText("-1.50");
   await expect(page.getByTestId("footer-characters")).toContainText("-90°");
+});
+
+test("an out-of-range draft is invalidated by reset, template switch and same-field updates, but not by unrelated edits (R2)", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await selectTemplate(page, "dialogue_medium_two_shot");
+  await page.getByTestId("advanced-refinement").locator("summary").click();
+  const focal = page.getByTestId("input-camera-focal-length");
+  const focalWarning = page.getByTestId("input-camera-focal-length-warning");
+
+  // Baseline (D032): the invalid focal draft stays visible with its warning.
+  await focal.fill("999");
+  await expect(focal).toHaveValue("999");
+  await expect(focalWarning).toContainText("当前保留 35");
+
+  // An UNRELATED field's valid edit does not clear the held draft: the camera
+  // x commit lands while the focal draft (and its warning) stays untouched.
+  await page.getByTestId("input-camera-position-x").fill("1.5");
+  await expect(page.getByTestId("footer-camera")).toContainText("1.50");
+  await expect(focal).toHaveValue("999");
+  await expect(focalWarning).toContainText("当前保留 35");
+
+  // A SAME-field update from another valid control (the simple focal preset)
+  // syncs the display and clears the stale draft + warning.
+  await page.getByTestId("control-focal-portrait").click();
+  await expect(page.getByTestId("footer-camera")).toContainText("50mm");
+  await expect(focal).toHaveValue("50");
+  await expect(focalWarning).toHaveCount(0);
+
+  // Reset-to-template: the medium default (35mm) returns even though the
+  // field's own value was never validly edited, and the draft gives way.
+  await focal.fill("999");
+  await expect(focalWarning).toContainText("当前保留 50");
+  await page.getByTestId("control-reset").click();
+  await expect(page.getByTestId("footer-camera")).toContainText("35mm");
+  await expect(focal).toHaveValue("35");
+  await expect(focalWarning).toHaveCount(0);
+
+  // Template switch to OTS A (75mm): the draft and its warning vanish instead
+  // of masking the new template's legal value.
+  await focal.fill("999");
+  await expect(focalWarning).toBeVisible();
+  await selectTemplate(page, "dialogue_ots_a_to_b");
+  await expect(page.getByTestId("footer-camera")).toContainText("75mm");
+  await expect(focal).toHaveValue("75");
+  await expect(focalWarning).toHaveCount(0);
 });
 
 test("reset restores the template values while keeping the session ShotState ID", async ({
@@ -379,7 +446,7 @@ test("reset restores the template values while keeping the session ShotState ID"
     true,
   );
   await expect(page.getByTestId("footer-camera")).toContainText(
-    "camera [-1.25, 1.70, 2.00] → [0.80, 1.55, 0.00] · 75mm",
+    "camera [-2.15, 1.45, 0.80] → [0.85, 1.55, -0.20] · 75mm",
   );
   await expect(page.getByTestId("footer-camera")).toContainText("16:9");
   await expect(page.getByTestId("footer-shot-state")).toHaveText(idBefore ?? "");
@@ -401,7 +468,7 @@ test("a page refresh restores the same session and ShotState ID", async ({ page 
   await page.reload();
   await expect(page.getByTestId("studio-workspace")).toBeVisible();
   await expect(page.getByTestId("footer-shot-state")).toHaveText(idBefore ?? "");
-  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v2");
+  await expect(page.getByTestId("footer-template")).toContainText("dialogue_ots_a_to_b v3");
   // Edited values survive the round trip, not just the template defaults.
   await expect(page.getByTestId("footer-camera")).toContainText("50mm");
   await expect(page.getByTestId("footer-camera")).toContainText("9:16");
@@ -438,9 +505,9 @@ test("a disabled localStorage keeps the studio usable and reports unavailability
     "本地保存不可用；编辑仅保留在当前页面",
   );
   // Editing continues purely in memory (makeCloser moves the camera from
-  // z=2.00 to z=1.60).
+  // z=0.80 to z=0.60).
   await page.getByTestId("control-closer").click();
-  await expect(page.getByTestId("footer-camera")).toContainText("1.60]");
+  await expect(page.getByTestId("footer-camera")).toContainText("0.60]");
 });
 
 test("a failing session write keeps editing alive and reports write_failed", async ({ page }) => {
@@ -463,7 +530,7 @@ test("a failing session write keeps editing alive and reports write_failed", asy
     "本地保存失败；编辑仍保留在当前页面",
   );
   await page.getByTestId("control-closer").click();
-  await expect(page.getByTestId("footer-camera")).toContainText("1.60]");
+  await expect(page.getByTestId("footer-camera")).toContainText("0.60]");
 });
 
 test("no hydration warnings across load, edit and reload", async ({ page }) => {
