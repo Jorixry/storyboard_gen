@@ -72,6 +72,24 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
+/**
+ * Canonical character order for CONTENT comparison: character_a then
+ * character_b. Prompt normalization emits characters in this order (two
+ * states differing only in array order compile to identical prompts), so
+ * prompt-source fingerprints are taken over this canonical form — see
+ * prompt-normalization's `state.stateFingerprint`.
+ */
+export function withCanonicalCharacterOrder(state: ShotState): ShotState {
+  const ordered = (["character_a", "character_b"] as const).map((id) =>
+    state.characters.find((character) => character.id === id),
+  );
+  if (ordered.some((character) => character === undefined)) {
+    // Unreachable after shotStateSchema.parse (exactly character_a/b once each).
+    throw new Error("canonical character missing after schema validation");
+  }
+  return { ...state, characters: ordered as ShotState["characters"] };
+}
+
 export interface CreateShotStateOptions {
   /**
    * ID factory override. Tests inject deterministic factories; production

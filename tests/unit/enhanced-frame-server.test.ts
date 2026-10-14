@@ -202,7 +202,8 @@ describe("handleEnhancedFrameRequest provider selection and failures", () => {
     expectFailure(
       await handleEnhancedFrameRequest(baseFormData(), {
         imageProvider: "seedream",
-        arkApiKey: "present-but-registry-empty",
+        // Single-char presence probe: the route only tests non-blankness.
+        arkApiKey: "a",
       }),
       501,
       "provider_adapter_not_implemented",

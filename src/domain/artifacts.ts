@@ -141,7 +141,7 @@ export type RawExportManifest = z.infer<typeof rawExportManifestSchema>;
 /* Full export package (Prompt 8 / Phase 2 §2.3 + Phase 3 Day 9)             */
 /* ------------------------------------------------------------------------- */
 
-export const FULL_EXPORT_MANIFEST_VERSION = 3;
+export const FULL_EXPORT_MANIFEST_VERSION = 4;
 
 /**
  * Exact filenames inside the FULL input package (the MVP_SCOPE "Outputs"
@@ -198,6 +198,72 @@ const adapterRefSchema = z.strictObject({
   adapterVersion: z.string().min(1),
   adapterConfigVersion: z.number().int().min(1).optional(),
 });
+
+/**
+ * SAFE, exportable generation-metadata keys for the enhanced first frame
+ * (Prompt 8 acceptance fix R1, 2026-10-14). These record the generation
+ * settings PRODUCT_SPEC requires every artifact to carry (actual model, size,
+ * watermark, reference counts...). The allowlist is deliberately explicit: no
+ * credentials, no raw server-environment values and no blindly repackaged
+ * unknown provider metadata ever enter the manifest. Adapter metadata keys
+ * outside this set (e.g. `endpoint`, `provider` — provider is already a
+ * top-level manifest field) are dropped at the export boundary.
+ */
+export const ENHANCED_FRAME_METADATA_KEYS = [
+  "signature",
+  "model",
+  "responseModel",
+  "outputFormat",
+  "responseSize",
+  "size",
+  "sizeSource",
+  "requestId",
+  "promptLengthBytes",
+  "compositionBytes",
+  "referenceCount",
+  "hasStyleReference",
+  "totalInputImages",
+  "watermark",
+] as const;
+
+export type EnhancedFrameMetadataKey = (typeof ENHANCED_FRAME_METADATA_KEYS)[number];
+
+export const enhancedFrameMetadataSchema = z.strictObject({
+  signature: z.string().optional(),
+  model: z.string().optional(),
+  responseModel: z.string().optional(),
+  outputFormat: z.string().optional(),
+  responseSize: z.string().optional(),
+  size: z.string().optional(),
+  sizeSource: z.string().optional(),
+  requestId: z.string().optional(),
+  promptLengthBytes: z.string().optional(),
+  compositionBytes: z.string().optional(),
+  referenceCount: z.string().optional(),
+  hasStyleReference: z.string().optional(),
+  totalInputImages: z.string().optional(),
+  watermark: z.string().optional(),
+});
+
+export type EnhancedFrameMetadata = z.infer<typeof enhancedFrameMetadataSchema>;
+
+/**
+ * Projects adapter-returned generation metadata onto the exportable allowlist.
+ * Unknown keys are dropped (never an error): a provider adding a new metadata
+ * key must not break the export, and un-vetted values must not be repackaged.
+ */
+export function exportableEnhancedFrameMetadata(
+  metadata: Record<string, string>,
+): EnhancedFrameMetadata {
+  const projected: Partial<Record<EnhancedFrameMetadataKey, string>> = {};
+  for (const key of ENHANCED_FRAME_METADATA_KEYS) {
+    const value = metadata[key];
+    if (typeof value === "string") {
+      projected[key] = value;
+    }
+  }
+  return enhancedFrameMetadataSchema.parse(projected);
+}
 
 const fullManifestFilesSchema = z.array(fullManifestArtifactSchema).superRefine((files, ctx) => {
   const required: readonly string[] = [
@@ -274,8 +340,20 @@ export const fullExportManifestSchema = z.strictObject({
     easing: easingSchema,
   }),
   prompts: z.strictObject({
-    generic: adapterRefSchema.extend({ fileName: FULL_PROMPT_FILENAMES }),
-    target: adapterRefSchema.extend({ fileName: FULL_PROMPT_FILENAMES }),
+    generic: adapterRefSchema.extend({
+      fileName: FULL_PROMPT_FILENAMES,
+      /**
+       * The compiler warnings for this prompt, verbatim and in deterministic
+       * emission order (Prompt 8 acceptance fix R4, 2026-10-14) — the
+       * per-fact diagnostics (semantic conflicts, movement inconsistencies,
+       * uninterpreted tokens) a reviewer needs next to the prompt text.
+       */
+      warnings: z.array(z.string()),
+    }),
+    target: adapterRefSchema.extend({
+      fileName: FULL_PROMPT_FILENAMES,
+      warnings: z.array(z.string()),
+    }),
   }),
   enhancedFrame: z.union([
     z.strictObject({
@@ -285,6 +363,12 @@ export const fullExportManifestSchema = z.strictObject({
       provider: z.string().min(1),
       /** Canonical fingerprint of the ShotState the frame was generated from. */
       sourceFingerprint: z.string().min(1),
+      /**
+       * Safe generation settings the frame was produced with (allowlisted;
+       * see ENHANCED_FRAME_METADATA_KEYS). Always present when included —
+       * possibly an empty object for an adapter that reported nothing safe.
+       */
+      metadata: enhancedFrameMetadataSchema,
     }),
     z.strictObject({
       included: z.literal(false),

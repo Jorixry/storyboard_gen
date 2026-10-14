@@ -19,6 +19,7 @@ import {
 import { normalizeShotState } from "../../src/domain/prompt-normalization";
 import {
   createShotStateFromTemplate,
+  shotStateFingerprint,
   shotStateSchema,
   type ShotState,
 } from "../../src/domain/shot-state";
@@ -160,6 +161,9 @@ describe("GenericVideoPromptAdapter metadata and determinism", () => {
     expect(result.source).toEqual({
       shotStateId: FIXED_ID,
       shotStateSchemaVersion: 1,
+      // Full-state fingerprint (R3): proves the prompt matches this exact
+      // state content, not just the id/template identity.
+      stateFingerprint: shotStateFingerprint(state),
       templateId: "dialogue_ots_b_to_a",
       templateVersion: 3, // OTS bumped to v3 by the D029 camera reposition
       templateReviewStatus: "approved", // D031 written approval 2026-10-11

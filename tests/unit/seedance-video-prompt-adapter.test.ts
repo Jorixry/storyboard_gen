@@ -11,6 +11,7 @@ import type { NormalizedShotSpec } from "../../src/adapters/video-prompts/types"
 import { normalizeShotState } from "../../src/domain/prompt-normalization";
 import {
   createShotStateFromTemplate,
+  shotStateFingerprint,
   shotStateSchema,
   type ShotState,
 } from "../../src/domain/shot-state";
@@ -176,6 +177,9 @@ describe("SeedanceVideoPromptAdapter determinism and purity", () => {
     expect(result.source).toEqual({
       shotStateId: FIXED_ID,
       shotStateSchemaVersion: 1,
+      // Full-state fingerprint (R3): proves the prompt matches this exact
+      // state content, not just the id/template identity.
+      stateFingerprint: shotStateFingerprint(state),
       templateId: "dialogue_ots_b_to_a",
       templateVersion: 3,
       templateReviewStatus: "approved", // D031 written approval 2026-10-11

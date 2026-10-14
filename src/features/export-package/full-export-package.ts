@@ -11,9 +11,13 @@
  *
  * Same-source verification is EXECUTABLE, not documentary: the builder
  * refuses the package when either prompt was not compiled from THIS frozen
- * state (state id + template id/version/review status), and an enhanced frame
- * whose full-state fingerprint no longer matches is excluded with reason
- * "stale" instead of shipping a frame that no longer describes this state.
+ * state — identity fields PLUS the complete-state fingerprint, because a shot
+ * keeps its id/template through ordinary edits (R3, 2026-10-14) — and an
+ * enhanced frame whose full-state fingerprint no longer matches is excluded
+ * with reason "stale" instead of shipping a frame that no longer describes
+ * this state. Both compilers' warnings ride in the manifest next to their
+ * prompt records (R4), and the enhanced frame carries its allowlisted
+ * generation settings (R1).
  *
  * Archive layout (exactly eight or nine files, in this order):
  *   shot-state.json, composition-raw.png, movement-start.png,
@@ -25,13 +29,20 @@ import type { CompiledPrompt } from "@/adapters/video-prompts/types";
 import type { ShotTemplate } from "@/domain/shot-template";
 import {
   enhancedFirstFrameFileName,
+  exportableEnhancedFrameMetadata,
   FULL_EXPORT_FILENAMES,
+  FULL_EXPORT_MANIFEST_VERSION,
   fullExportManifestSchema,
   serializeShotStateJson,
   sha256Hex,
   type FullExportManifest,
 } from "@/domain/artifacts";
-import { shotStateFingerprint, shotStateSchema, type ShotState } from "@/domain/shot-state";
+import {
+  shotStateFingerprint,
+  shotStateSchema,
+  withCanonicalCharacterOrder,
+  type ShotState,
+} from "@/domain/shot-state";
 
 import { buildTemplateDiff } from "./template-diff";
 
@@ -51,6 +62,12 @@ export interface FullExportEnhancedFrame {
   provider: string;
   /** shotStateFingerprint of the state the frame was generated from. */
   sourceFingerprint: string;
+  /**
+   * Generation settings returned by the image adapter (the enhanced-frame
+   * store keeps them verbatim). The export projects them onto the safe
+   * ENHANCED_FRAME_METADATA_KEYS allowlist — see domain/artifacts.ts (R1).
+   */
+  metadata: Record<string, string>;
 }
 
 export interface FullExportPackageInput {
@@ -88,6 +105,17 @@ function verifyPromptSource(
   }
   if (source.shotStateSchemaVersion !== frozen.schemaVersion) {
     problems.push(`schema v${source.shotStateSchemaVersion} != v${frozen.schemaVersion}`);
+  }
+  // Full-state fingerprint (R3, 2026-10-14): identity fields survive ordinary
+  // edits (a shot keeps its id and template while camera/characters/movement/
+  // semantics change), so only the complete-content fingerprint proves the
+  // prompt was compiled from THIS exact state. The comparison uses the same
+  // canonical character order normalization applies, so an order-only
+  // difference is not a mismatch.
+  if (source.stateFingerprint !== shotStateFingerprint(withCanonicalCharacterOrder(frozen))) {
+    problems.push(
+      "state fingerprint mismatch (the prompt was compiled from different state content)",
+    );
   }
   if (source.templateId !== frozen.template.id) {
     problems.push(`template ${source.templateId} != ${frozen.template.id}`);
@@ -174,7 +202,7 @@ export async function buildFullExportPackage(
 
   const candidate: FullExportManifest = {
     kind: "storyboard-director-full-export",
-    manifestVersion: 3,
+    manifestVersion: FULL_EXPORT_MANIFEST_VERSION,
     generatedAt: input.generatedAt.toISOString(),
     shotState: {
       id: frozen.id,
@@ -193,12 +221,14 @@ export async function buildFullExportPackage(
         adapterId: input.prompts.generic.adapterId,
         adapterVersion: input.prompts.generic.adapterVersion,
         adapterConfigVersion: input.prompts.generic.adapterConfigVersion,
+        warnings: input.prompts.generic.warnings,
       },
       target: {
         fileName: FULL_EXPORT_FILENAMES.promptTarget,
         adapterId: input.prompts.target.adapterId,
         adapterVersion: input.prompts.target.adapterVersion,
         adapterConfigVersion: input.prompts.target.adapterConfigVersion,
+        warnings: input.prompts.target.warnings,
       },
     },
     enhancedFrame:
@@ -212,6 +242,7 @@ export async function buildFullExportPackage(
             },
             provider: includedFrame.provider,
             sourceFingerprint: includedFrame.sourceFingerprint,
+            metadata: exportableEnhancedFrameMetadata(includedFrame.metadata),
           }
         : { included: false, reason: "reason" in enhanced ? enhanced.reason : "absent" },
     files,

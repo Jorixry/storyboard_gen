@@ -7,7 +7,9 @@ import {
 import {
   createShotStateFromTemplate,
   SHOT_STATE_SCHEMA_VERSION,
+  shotStateFingerprint,
   shotStateSchema,
+  withCanonicalCharacterOrder,
   type ShotState,
 } from "../../src/domain/shot-state";
 import { loadRealTemplates } from "../helpers/content-test-utils";
@@ -39,7 +41,12 @@ describe("normalizeShotState", () => {
       const state = await stateFromTemplate(templateId);
       const spec = normalizeShotState(state);
 
-      expect(spec.state).toEqual({ id: FIXED_ID, schemaVersion: SHOT_STATE_SCHEMA_VERSION });
+      expect(spec.state).toEqual({
+        id: FIXED_ID,
+        schemaVersion: SHOT_STATE_SCHEMA_VERSION,
+        // Full-state canonical fingerprint (R3): same-ID edits must change it.
+        stateFingerprint: shotStateFingerprint(state),
+      });
       expect(spec.template).toEqual({
         id: state.template.id,
         version: state.template.version,
@@ -81,6 +88,54 @@ describe("normalizeShotState", () => {
     expect(spec.camera.position).toEqual([0, 1.5, 3]);
     expect(spec.movement.start.position).toEqual(state.movement.start.position);
     expect(spec.movement.end.position).toEqual(state.movement.end.position);
+  });
+
+  it("carries a full-state fingerprint that detects SAME-ID content edits (R3)", async () => {
+    const state = await stateFromTemplate("dialogue_ots_a_to_b");
+    const base = normalizeShotState(state);
+
+    // Every ordinary edit keeps id/schemaVersion/template — only the
+    // fingerprint moves, which is exactly what same-source verification needs.
+    const sameIdEdits: ShotState[] = [
+      shotStateSchema.parse({
+        ...state,
+        camera: { ...state.camera, focalLengthMm: 85 },
+      }),
+      shotStateSchema.parse({
+        ...state,
+        characters: state.characters.map((character) =>
+          character.id === "character_b"
+            ? { ...character, position: [0.6, 0, 0.2] as [number, number, number] }
+            : character,
+        ),
+      }),
+      shotStateSchema.parse({
+        ...state,
+        movement: { ...state.movement, type: "static" as const },
+      }),
+      shotStateSchema.parse({
+        ...state,
+        semantics: {
+          ...state.semantics,
+          optics: [...state.semantics.optics, "shallow_depth_of_field"],
+        },
+      }),
+    ];
+    for (const edited of sameIdEdits) {
+      expect(edited.id).toBe(state.id);
+      expect(edited.template).toEqual(state.template);
+      const spec = normalizeShotState(edited);
+      expect(spec.state.id).toBe(base.state.id);
+      expect(spec.state.schemaVersion).toBe(base.state.schemaVersion);
+      expect(spec.state.stateFingerprint).not.toBe(base.state.stateFingerprint);
+      expect(spec.state.stateFingerprint).toBe(
+        shotStateFingerprint(withCanonicalCharacterOrder(edited)),
+      );
+    }
+
+    // Key-insertion order must not matter (canonical JSON sorts keys).
+    const reordered = JSON.parse(JSON.stringify(state)) as ShotState;
+    expect(normalizeShotState(reordered).state.stateFingerprint).toBe(base.state.stateFingerprint);
   });
 
   it("rejects schema-invalid input without producing a partial specification", async () => {

@@ -71,6 +71,11 @@ export function FullExport() {
   const [phase, setPhase] = useState<ExportPhase>("idle");
   const [frozen, setFrozen] = useState<ShotState | null>(null);
   const [status, setStatus] = useState("");
+  /** Compiler warnings of the last successful package (R4): shown next to it. */
+  const [lastWarnings, setLastWarnings] = useState<{
+    generic: string[];
+    target: string[];
+  } | null>(null);
 
   const busy = phase === "capturing" || phase === "packaging";
 
@@ -85,6 +90,7 @@ export function FullExport() {
       return;
     }
     setFrozen(parsed.data);
+    setLastWarnings(null);
     setPhase("capturing");
     setStatus(PHASE_COPY.capturing);
   };
@@ -118,6 +124,7 @@ export function FullExport() {
       adapterVersion: enhancedResult.adapterVersion,
       provider: enhancedResult.provider,
       sourceFingerprint: shotStateFingerprint(enhancedResult.sourceState),
+      metadata: enhancedResult.metadata,
     };
   };
 
@@ -154,6 +161,10 @@ export function FullExport() {
       setStatus(
         `已生成 ${pkg.fileName}（${pkg.manifest.files.length} 个文件 · ${enhancedNote} · ${pkg.zip.byteLength} bytes）`,
       );
+      setLastWarnings({
+        generic: pkg.manifest.prompts.generic.warnings,
+        target: pkg.manifest.prompts.target.warnings,
+      });
     } catch (error) {
       setPhase("error");
       setStatus(`完整导出失败：${error instanceof Error ? error.message : String(error)}`);
@@ -191,6 +202,28 @@ export function FullExport() {
       <p className="control-hint" data-testid="full-export-status" hidden={status === ""}>
         {status}
       </p>
+      {lastWarnings !== null &&
+        (lastWarnings.generic.length > 0 || lastWarnings.target.length > 0) && (
+          <div className="command-warning" data-testid="full-export-prompt-warnings" role="alert">
+            <p>
+              编译警告（已随 manifest 导出，共{" "}
+              {lastWarnings.generic.length + lastWarnings.target.length} 条；警告不阻止导出，raw
+              导出亦不受影响）：
+            </p>
+            <ul>
+              {lastWarnings.generic.map((warning) => (
+                <li key={`generic-${warning}`} data-testid="full-export-prompt-warning-item">
+                  generic（generic_video）：{warning}
+                </li>
+              ))}
+              {lastWarnings.target.map((warning) => (
+                <li key={`target-${warning}`} data-testid="full-export-prompt-warning-item">
+                  target（seedance_video）：{warning}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       {phase === "capturing" && frozen !== null && (
         <PoseCaptureStage
           frozen={frozen}

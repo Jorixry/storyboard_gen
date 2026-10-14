@@ -136,6 +136,17 @@ test("onboarding steps show before selection; full export without a frame record
     expect(await sha256Hex(bytes)).toBe(file.sha256);
   }
   await expectPromptsMatchState(entries, state);
+
+  // R4: both compilers' warnings ship in the manifest (medium still emits the
+  // reviewStatus + uninterpreted-token warnings), and the UI surfaces them
+  // next to the download instead of dropping them.
+  expect(
+    manifest.prompts.generic.warnings.some((w) => w.includes("no generic-adapter interpretation")),
+  ).toBe(true);
+  await expect(page.getByTestId("full-export-prompt-warnings")).toBeVisible();
+  await expect(page.getByTestId("full-export-prompt-warnings")).toContainText(
+    "no generic-adapter interpretation",
+  );
 });
 
 test("a current mock enhanced frame ships in the package with full provenance", async ({
@@ -164,7 +175,7 @@ test("a current mock enhanced frame ships in the package with full provenance", 
     "with-frame.zip",
   );
 
-  expect(manifest.manifestVersion).toBe(3);
+  expect(manifest.manifestVersion).toBe(4);
   expect(manifest.enhancedFrame.included).toBe(true);
   if (!manifest.enhancedFrame.included) {
     throw new Error("expected the enhanced frame to be included");
@@ -173,6 +184,14 @@ test("a current mock enhanced frame ships in the package with full provenance", 
     fileName: "enhanced-first-frame.svg",
     provider: "mock",
   });
+  // R1: the mock adapter's generation settings survive into the manifest
+  // (safe allowlist; unknown server-side values are dropped at the boundary).
+  expect(manifest.enhancedFrame.metadata).toMatchObject({
+    referenceCount: "0",
+    hasStyleReference: "false",
+  });
+  expect(manifest.enhancedFrame.metadata.signature).toMatch(/^[0-9a-f]{8}$/);
+  expect(manifest.enhancedFrame.metadata.promptLengthBytes).toMatch(/^\d+$/);
   expect(manifest.enhancedFrame.adapter).toMatchObject({ adapterId: "mock-image-generation" });
   expect(entries.get("enhanced-first-frame.svg")!.toString("utf8")).toContain("<svg");
   // The v3 diff artifact rides along and names the edit vs the template

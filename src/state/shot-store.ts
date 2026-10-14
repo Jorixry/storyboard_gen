@@ -76,6 +76,16 @@ export interface ShotStore {
   shotState: ShotState | null;
   /** True once the initial localStorage hydration attempt has finished. */
   hydrated: boolean;
+  /**
+   * Monotonic canonical-state lifecycle counter (Prompt 8 acceptance fix R2,
+   * 2026-10-14). Incremented ONLY where the state is replaced wholesale by a
+   * lifecycle event — selectTemplate and resetToTemplate — and deliberately
+   * NOT by ordinary field edits. resetToTemplate keeps the ShotState ID, so
+   * consumers invalidating derived UI (e.g. held input drafts) must key on
+   * this epoch, never on the id. UI-only: never part of ShotState, exports
+   * or persistence.
+   */
+  stateEpoch: number;
   /** Loads a template through the development opt-in; mints a NEW ShotState ID. */
   selectTemplate(templateId: string): void;
   makeCloser(): void;
@@ -119,9 +129,13 @@ export function createShotStore(deps: ShotStoreDeps) {
   const store = createStore<ShotStore>()((set, get) => ({
     shotState: null,
     hydrated: false,
+    stateEpoch: 0,
     selectTemplate: (templateId) => {
       const template = findLoadableTemplate(templateId);
-      set({ shotState: createShotStateFromTemplate(template, { generateId }) });
+      set({
+        shotState: createShotStateFromTemplate(template, { generateId }),
+        stateEpoch: get().stateEpoch + 1,
+      });
     },
     makeCloser: () => applyCommand(makeCloser),
     makeFarther: () => applyCommand(makeFarther),
@@ -148,7 +162,10 @@ export function createShotStore(deps: ShotStoreDeps) {
         // silently resetting to a different template version.
         throw new UnknownTemplateError(current.template.id, deps.includeStatuses);
       }
-      set({ shotState: resetShotStateToTemplate(current, template) });
+      set({
+        shotState: resetShotStateToTemplate(current, template),
+        stateEpoch: get().stateEpoch + 1,
+      });
     },
   }));
 

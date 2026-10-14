@@ -105,6 +105,7 @@ export class SeedanceVideoPromptAdapter implements VideoPromptAdapter {
       source: {
         shotStateId: spec.state.id,
         shotStateSchemaVersion: spec.state.schemaVersion,
+        stateFingerprint: spec.state.stateFingerprint,
         templateId: spec.template.id,
         templateVersion: spec.template.version,
         templateReviewStatus: spec.template.reviewStatus,

@@ -172,6 +172,43 @@ describe("createShotStore — command actions", () => {
   });
 });
 
+describe("createShotStore — stateEpoch lifecycle counter (R2)", () => {
+  it("starts at 0 and increments on selectTemplate (including re-selecting the same template)", async () => {
+    const { store } = await realStore();
+    expect(store.getState().stateEpoch).toBe(0);
+    store.getState().selectTemplate("dialogue_ots_a_to_b");
+    expect(store.getState().stateEpoch).toBe(1);
+    // Switching to a template whose focal equals the previous one must still
+    // bump the epoch — derived UI cannot rely on field values alone.
+    store.getState().selectTemplate("dialogue_ots_b_to_a");
+    expect(store.getState().stateEpoch).toBe(2);
+    store.getState().selectTemplate("dialogue_ots_b_to_a");
+    expect(store.getState().stateEpoch).toBe(3);
+  });
+
+  it("increments on resetToTemplate even though the ShotState ID is unchanged", async () => {
+    const { store } = await realStore();
+    store.getState().selectTemplate("dialogue_ots_a_to_b");
+    const idBefore = store.getState().shotState!.id;
+    expect(store.getState().stateEpoch).toBe(1);
+
+    store.getState().resetToTemplate();
+    expect(store.getState().shotState!.id).toBe(idBefore);
+    expect(store.getState().stateEpoch).toBe(2);
+  });
+
+  it("does NOT increment on ordinary field edits", async () => {
+    const { store } = await realStore();
+    store.getState().selectTemplate("dialogue_medium_two_shot");
+    expect(store.getState().stateEpoch).toBe(1);
+    store.getState().setFocalFeel("portrait");
+    store.getState().makeCloser();
+    store.getState().emphasizeCharacter("character_b");
+    store.getState().setCameraFocalLength(85);
+    expect(store.getState().stateEpoch).toBe(1);
+  });
+});
+
 describe("createShotStore — resetToTemplate", () => {
   it("restores template values while KEEPING the current ShotState ID", async () => {
     const { store } = await realStore();

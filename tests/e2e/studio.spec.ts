@@ -378,6 +378,53 @@ test("constrained transforms update the canonical ShotState and the 3D preview",
   await expect(page.getByTestId("footer-characters")).toContainText("-90°");
 });
 
+test("an out-of-range draft is invalidated by reset, template switch and same-field updates, but not by unrelated edits (R2)", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await selectTemplate(page, "dialogue_medium_two_shot");
+  await page.getByTestId("advanced-refinement").locator("summary").click();
+  const focal = page.getByTestId("input-camera-focal-length");
+  const focalWarning = page.getByTestId("input-camera-focal-length-warning");
+
+  // Baseline (D032): the invalid focal draft stays visible with its warning.
+  await focal.fill("999");
+  await expect(focal).toHaveValue("999");
+  await expect(focalWarning).toContainText("当前保留 35");
+
+  // An UNRELATED field's valid edit does not clear the held draft: the camera
+  // x commit lands while the focal draft (and its warning) stays untouched.
+  await page.getByTestId("input-camera-position-x").fill("1.5");
+  await expect(page.getByTestId("footer-camera")).toContainText("1.50");
+  await expect(focal).toHaveValue("999");
+  await expect(focalWarning).toContainText("当前保留 35");
+
+  // A SAME-field update from another valid control (the simple focal preset)
+  // syncs the display and clears the stale draft + warning.
+  await page.getByTestId("control-focal-portrait").click();
+  await expect(page.getByTestId("footer-camera")).toContainText("50mm");
+  await expect(focal).toHaveValue("50");
+  await expect(focalWarning).toHaveCount(0);
+
+  // Reset-to-template: the medium default (35mm) returns even though the
+  // field's own value was never validly edited, and the draft gives way.
+  await focal.fill("999");
+  await expect(focalWarning).toContainText("当前保留 50");
+  await page.getByTestId("control-reset").click();
+  await expect(page.getByTestId("footer-camera")).toContainText("35mm");
+  await expect(focal).toHaveValue("35");
+  await expect(focalWarning).toHaveCount(0);
+
+  // Template switch to OTS A (75mm): the draft and its warning vanish instead
+  // of masking the new template's legal value.
+  await focal.fill("999");
+  await expect(focalWarning).toBeVisible();
+  await selectTemplate(page, "dialogue_ots_a_to_b");
+  await expect(page.getByTestId("footer-camera")).toContainText("75mm");
+  await expect(focal).toHaveValue("75");
+  await expect(focalWarning).toHaveCount(0);
+});
+
 test("reset restores the template values while keeping the session ShotState ID", async ({
   page,
 }) => {

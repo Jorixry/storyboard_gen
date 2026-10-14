@@ -18,14 +18,17 @@ describe("buildImageAdapterRegistry (D027 credential gating)", () => {
   });
 
   it("registers seedream when ARK_API_KEY is present", () => {
-    const registry = buildImageAdapterRegistry({ arkApiKey: "test-key" });
+    // Single-char presence probe, matching the both-providers test below: the
+    // registry only tests non-blankness, and a one-character fixture is
+    // self-evidently not a credential.
+    const registry = buildImageAdapterRegistry({ arkApiKey: "a" });
     expect(registry.seedream?.id).toBe("seedream");
     expect(registry.wanxiang).toBeUndefined();
   });
 
   it("registers wanxiang with the workspace-domain override when provided", () => {
     const registry = buildImageAdapterRegistry({
-      dashscopeApiKey: "test-key",
+      dashscopeApiKey: "b",
       dashscopeBaseUrl: "https://ws-1.cn-beijing.maas.aliyuncs.com",
     });
     expect(registry.wanxiang?.id).toBe("wanxiang");

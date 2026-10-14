@@ -16,8 +16,15 @@
  * its wrap-into-range 自动归一 behavior). The commands still clamp as a
  * defense-in-depth layer, and refused commands leave the state untouched
  * and show the reason.
+ *
+ * Draft lifecycle (Prompt 8 acceptance fix R2, 2026-10-14): a held draft is
+ * invalidated by exactly two events — the canonical-state lifecycle epoch
+ * changing (template switch or reset-to-template, which keeps the shot ID)
+ * or THIS field's canonical value changing from elsewhere (e.g. a simple
+ * focal preset). An unrelated field's edit never clears a draft that is
+ * still being corrected, and the invalid-draft behavior above is unchanged.
  */
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useStore } from "zustand/react";
 
 import type { CharacterId, Vec3 } from "@/domain/schemas";
@@ -46,6 +53,7 @@ function NumberField({
   step,
   rangeNote,
   outOfRangePolicy = "reject",
+  lifecycleEpoch,
 }: {
   label: string;
   /** Physical unit shown next to the field, e.g. "m", "mm", "°". */
@@ -67,6 +75,11 @@ function NumberField({
    * 自动归一 promise on the field).
    */
   outOfRangePolicy?: "reject" | "commit";
+  /**
+   * Canonical-state lifecycle epoch (R2): changes when the whole state is
+   * replaced by a template switch or reset. Any held draft is invalidated.
+   */
+  lifecycleEpoch: number;
 }) {
   // 2026-10-11 director-approved UX: an out-of-range (or non-numeric) draft
   // STAYS in the input and is never written to the canonical ShotState — the
@@ -74,6 +87,24 @@ function NumberField({
   // user returns the field to the allowed range and the commit succeeds.
   const [draft, setDraft] = useState<string | null>(null);
   const [fieldWarning, setFieldWarning] = useState("");
+
+  // Draft lifecycle (R2, 2026-10-14): reset the held draft DURING RENDER when
+  // the canonical lifecycle epoch or THIS field's canonical value moved. The
+  // canonical value only changes while a draft is held when the update came
+  // from OUTSIDE this field (its own valid commits clear the draft first), so
+  // any change here means the draft no longer describes the state. The shared
+  // panel warning is cleared by the same lifecycle paths (gallery select,
+  // simple-control commits), so only the field-local warning resets here.
+  const [seenEpoch, setSeenEpoch] = useState(lifecycleEpoch);
+  const [seenValue, setSeenValue] = useState(value);
+  if (lifecycleEpoch !== seenEpoch || value !== seenValue) {
+    setSeenEpoch(lifecycleEpoch);
+    setSeenValue(value);
+    if (draft !== null || fieldWarning !== "") {
+      setDraft(null);
+      setFieldWarning("");
+    }
+  }
 
   const shown = draft ?? formatNumber(value);
 
@@ -126,6 +157,16 @@ function NumberField({
       ) : null}
     </label>
   );
+}
+
+/**
+ * NumberField bound to the canonical-state lifecycle epoch (R2): template
+ * switches and resets invalidate every held draft, while ordinary edits do
+ * not — the field-level invalidation itself stays inside NumberField.
+ */
+function RefinementField(props: Omit<ComponentProps<typeof NumberField>, "lifecycleEpoch">) {
+  const lifecycleEpoch = useStore(appShotStore, (state) => state.stateEpoch);
+  return <NumberField {...props} lifecycleEpoch={lifecycleEpoch} />;
 }
 
 export function TransformRefinement({ onWarning }: { onWarning: (message: string) => void }) {
@@ -198,7 +239,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
         <fieldset className="refinement-group" data-testid="refinement-camera">
           <legend>相机</legend>
           <div className="number-field-row">
-            <NumberField
+            <RefinementField
               label="位置 x"
               unit="m"
               value={camera.position[0]}
@@ -218,7 +259,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                 )
               }
             />
-            <NumberField
+            <RefinementField
               label="位置 y"
               unit="m"
               value={camera.position[1]}
@@ -238,7 +279,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                 )
               }
             />
-            <NumberField
+            <RefinementField
               label="位置 z"
               unit="m"
               value={camera.position[2]}
@@ -260,7 +301,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
             />
           </div>
           <div className="number-field-row">
-            <NumberField
+            <RefinementField
               label="目标 x"
               unit="m"
               value={camera.target[0]}
@@ -280,7 +321,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                 )
               }
             />
-            <NumberField
+            <RefinementField
               label="目标 y"
               unit="m"
               value={camera.target[1]}
@@ -300,7 +341,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                 )
               }
             />
-            <NumberField
+            <RefinementField
               label="目标 z"
               unit="m"
               value={camera.target[2]}
@@ -321,7 +362,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
               }
             />
           </div>
-          <NumberField
+          <RefinementField
             label="焦距"
             unit="mm"
             rangeNote="Schema 范围"
@@ -348,7 +389,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
             <fieldset className="refinement-group" key={id} data-testid={`refinement-${id}`}>
               <legend>{label}</legend>
               <div className="number-field-row">
-                <NumberField
+                <RefinementField
                   label="位置 x"
                   unit="m"
                   value={character.position[0]}
@@ -370,7 +411,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                     )
                   }
                 />
-                <NumberField
+                <RefinementField
                   label="位置 z"
                   unit="m"
                   value={character.position[2]}
@@ -392,7 +433,7 @@ export function TransformRefinement({ onWarning }: { onWarning: (message: string
                     )
                   }
                 />
-                <NumberField
+                <RefinementField
                   label="朝向角"
                   unit="°"
                   rangeNote="自动归一"

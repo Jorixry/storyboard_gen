@@ -81,13 +81,19 @@ function enhancedFrom(state: ShotState): FullExportEnhancedFrame {
     adapterVersion: "1.0.0",
     provider: "mock",
     sourceFingerprint: shotStateFingerprint(state),
+    metadata: {
+      signature: "f9b9d02e",
+      promptLengthBytes: "1392",
+      referenceCount: "0",
+      hasStyleReference: "false",
+    },
   };
 }
 
 const GENERATED_AT = new Date("2026-10-08T12:00:00.000Z");
 
 describe("buildFullExportPackage happy paths", () => {
-  it("bundles eight files plus the enhanced frame and a schema-valid v3 manifest", async () => {
+  it("bundles eight files plus the enhanced frame and a schema-valid v4 manifest", async () => {
     const state = await frozenState();
     const pkg = await buildFullExportPackage({
       shotState: state,
@@ -100,11 +106,19 @@ describe("buildFullExportPackage happy paths", () => {
 
     expect(pkg.fileName).toBe(fullExportFileName(FIXED_ID));
     expect(pkg.manifest.kind).toBe("storyboard-director-full-export");
-    expect(pkg.manifest.manifestVersion).toBe(3);
+    expect(pkg.manifest.manifestVersion).toBe(4);
     expect(pkg.manifest.enhancedFrame).toMatchObject({
       included: true,
       fileName: "enhanced-first-frame.svg",
       provider: "mock",
+      // R1: the frame's safe generation settings survive into the manifest
+      // (the deterministic mock reports these four keys).
+      metadata: {
+        signature: "f9b9d02e",
+        promptLengthBytes: "1392",
+        referenceCount: "0",
+        hasStyleReference: "false",
+      },
     });
     expect(pkg.manifest.prompts.generic).toMatchObject({
       fileName: "prompt-generic.txt",
@@ -160,6 +174,11 @@ describe("buildFullExportPackage happy paths", () => {
     expect(new TextDecoder().decode(entries.get("prompt-seedance.txt")!)).toBe(
       prompts.target.prompt,
     );
+    // R4: both compilers' warnings ride in the manifest verbatim, in emission
+    // order — the per-fact diagnostics a reviewer needs next to the prompts.
+    expect(pkg.manifest.prompts.generic.warnings).toEqual(prompts.generic.warnings);
+    expect(pkg.manifest.prompts.target.warnings).toEqual(prompts.target.warnings);
+    expect(pkg.manifest.prompts.generic.warnings.length).toBeGreaterThan(0);
     // An unedited state ships the explicit no-deviations marker.
     expect(new TextDecoder().decode(entries.get("template-diff.txt")!)).toBe(
       [
@@ -309,6 +328,193 @@ describe("buildFullExportPackage same-source verification", () => {
         generatedAt: GENERATED_AT,
       }),
     ).rejects.toThrow(/template-diff refused/);
+  });
+
+  it("REFUSES stale prompts that keep the SAME shot id but were compiled from edited content (R3)", async () => {
+    // The independent-review probe as a formal assertion: compile both real
+    // adapter outputs, then edit the SAME state (id unchanged) and offer the
+    // old prompts. Identity fields all still match; only the full-state
+    // fingerprint can catch the mix.
+    const state = await frozenState();
+    const stalePrompts = await compilePrompts(state);
+
+    const edits: Array<(state: ShotState) => ShotState> = [
+      (s) =>
+        JSON.parse(
+          JSON.stringify({ ...s, camera: { ...s.camera, focalLengthMm: 85 } }),
+        ) as ShotState,
+      (s) =>
+        JSON.parse(
+          JSON.stringify({
+            ...s,
+            characters: s.characters.map((c) =>
+              c.id === "character_b" ? { ...c, position: [0.6, 0, 0.2] } : c,
+            ),
+          }),
+        ) as ShotState,
+      (s) =>
+        JSON.parse(
+          JSON.stringify({ ...s, movement: { ...s.movement, type: "static" } }),
+        ) as ShotState,
+      (s) =>
+        JSON.parse(
+          JSON.stringify({
+            ...s,
+            semantics: {
+              ...s.semantics,
+              optics: [...s.semantics.optics, "shallow_depth_of_field"],
+            },
+          }),
+        ) as ShotState,
+    ];
+    for (const edit of edits) {
+      const edited = edit(state);
+      expect(edited.id).toBe(state.id); // the id survives the edit
+      await expect(
+        buildFullExportPackage({
+          shotState: edited,
+          template: await otsTemplate(),
+          images: images(),
+          prompts: stalePrompts,
+          enhancedFrame: { reason: "absent" },
+          generatedAt: GENERATED_AT,
+        }),
+      ).rejects.toThrow(/state fingerprint mismatch/);
+    }
+  });
+});
+
+describe("buildFullExportPackage compiler warnings (R4)", () => {
+  it("carries the movement-inconsistency warning into the manifest verbatim", async () => {
+    // Keep the OTS dolly start/end poses but declare the movement static:
+    // BOTH compilers emit a type-vs-poses warning, and the package must ship
+    // it next to the prompt records instead of dropping it.
+    const state = await frozenState();
+    const inconsistent = JSON.parse(
+      JSON.stringify({ ...state, movement: { ...state.movement, type: "static" } }),
+    ) as ShotState;
+    const prompts = await compilePrompts(inconsistent);
+    expect(
+      prompts.target.warnings.some((w) => w.includes("type=static but start and end poses differ")),
+    ).toBe(true);
+
+    const pkg = await buildFullExportPackage({
+      shotState: inconsistent,
+      template: await otsTemplate(),
+      images: images(),
+      prompts,
+      enhancedFrame: { reason: "absent" },
+      generatedAt: GENERATED_AT,
+    });
+    expect(pkg.manifest.prompts.target.warnings).toEqual(prompts.target.warnings);
+    expect(pkg.manifest.prompts.generic.warnings).toEqual(prompts.generic.warnings);
+    expect(
+      pkg.manifest.prompts.target.warnings.some((w) =>
+        w.includes("type=static but start and end poses differ"),
+      ),
+    ).toBe(true);
+    // The warning text also remains inspectable inside the shipped archive's
+    // manifest.json (the ZIP is the user-facing artifact).
+    const entries = new Map(
+      readStoreZip(Buffer.from(pkg.zip)).map((entry) => [entry.name, entry.data]),
+    );
+    const manifestJson = JSON.parse(new TextDecoder().decode(entries.get("manifest.json")!));
+    expect(
+      manifestJson.prompts.target.warnings.some((w: string) =>
+        w.includes("type=static but start and end poses differ"),
+      ),
+    ).toBe(true);
+  });
+
+  it("a warning-free compile ships empty arrays, not missing fields", async () => {
+    const state = await frozenState();
+    const prompts = await compilePrompts(state);
+    const pkg = await buildFullExportPackage({
+      shotState: state,
+      template: await otsTemplate(),
+      images: images(),
+      prompts: {
+        generic: { ...prompts.generic, warnings: [] },
+        target: { ...prompts.target, warnings: [] },
+      },
+      enhancedFrame: { reason: "absent" },
+      generatedAt: GENERATED_AT,
+    });
+    expect(pkg.manifest.prompts.generic.warnings).toEqual([]);
+    expect(pkg.manifest.prompts.target.warnings).toEqual([]);
+  });
+});
+
+describe("buildFullExportPackage enhanced-frame generation metadata (R1)", () => {
+  it("keeps the allowlisted provider settings and drops unsafe/unknown keys", async () => {
+    const state = await frozenState();
+    // A Seedream-shaped metadata record plus deliberately non-exportable
+    // extras: the endpoint (server configuration) and an unvetted unknown key
+    // a future provider revision might add must never reach the manifest.
+    const frame: FullExportEnhancedFrame = {
+      ...enhancedFrom(state),
+      metadata: {
+        provider: "seedream",
+        model: "doubao-seedream-5-0-pro-260628",
+        size: "1280x720",
+        sizeSource: "composition-png",
+        watermark: "false",
+        referenceCount: "2",
+        hasStyleReference: "true",
+        promptLengthBytes: "1392",
+        endpoint: "https://ark.example.internal/api/v3",
+        unvettedFutureKey: "provider-added-this",
+      },
+    };
+    const pkg = await buildFullExportPackage({
+      shotState: state,
+      template: await otsTemplate(),
+      images: images(),
+      prompts: await compilePrompts(state),
+      enhancedFrame: frame,
+      generatedAt: GENERATED_AT,
+    });
+
+    if (!pkg.manifest.enhancedFrame.included) {
+      throw new Error("expected the enhanced frame to be included");
+    }
+    expect(pkg.manifest.enhancedFrame.metadata).toEqual({
+      model: "doubao-seedream-5-0-pro-260628",
+      size: "1280x720",
+      sizeSource: "composition-png",
+      watermark: "false",
+      referenceCount: "2",
+      hasStyleReference: "true",
+      promptLengthBytes: "1392",
+    });
+    // The shipped manifest.json (the reviewer-facing artifact) contains none
+    // of the dropped values.
+    const entries = new Map(
+      readStoreZip(Buffer.from(pkg.zip)).map((entry) => [entry.name, entry.data]),
+    );
+    const manifestText = new TextDecoder().decode(entries.get("manifest.json")!);
+    expect(manifestText).not.toContain("endpoint");
+    expect(manifestText).not.toContain("unvettedFutureKey");
+    expect(manifestText).not.toContain("provider-added-this");
+    expect(manifestText).toContain("doubao-seedream-5-0-pro-260628");
+  });
+
+  it("the strict manifest schema rejects metadata keys outside the allowlist", async () => {
+    const state = await frozenState();
+    const pkg = await buildFullExportPackage({
+      shotState: state,
+      template: await otsTemplate(),
+      images: images(),
+      prompts: await compilePrompts(state),
+      enhancedFrame: enhancedFrom(state),
+      generatedAt: GENERATED_AT,
+    });
+    const tampered = JSON.parse(JSON.stringify(pkg.manifest));
+    if (!tampered.enhancedFrame.included) {
+      throw new Error("expected the enhanced frame to be included");
+    }
+    tampered.enhancedFrame.metadata.inventedKey = "value";
+    expect(() => fullExportManifestSchema.parse(tampered)).toThrow(/inventedKey|Unrecognized key/);
   });
 });
 

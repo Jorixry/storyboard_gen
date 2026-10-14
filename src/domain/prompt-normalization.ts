@@ -40,12 +40,25 @@ import {
   type Vec3,
 } from "./schemas";
 import { reviewStatusSchema, templateIdSchema } from "./shot-template";
-import { shotStateSchema, type ShotState } from "./shot-state";
+import {
+  shotStateFingerprint,
+  shotStateSchema,
+  withCanonicalCharacterOrder,
+  type ShotState,
+} from "./shot-state";
 
 export const normalizedShotSpecSchema = z.strictObject({
   state: z.strictObject({
     id: z.string().min(1),
     schemaVersion: z.number().int().min(1),
+    /**
+     * Canonical-JSON fingerprint of the COMPLETE validated ShotState the spec
+     * was normalized from (Prompt 8 acceptance fix R3, 2026-10-14). Identity
+     * fields alone cannot detect a same-ID edit, so every consumer that needs
+     * to match a compiled prompt back to its exact source state compares this
+     * fingerprint, never just id/template fields.
+     */
+    stateFingerprint: z.string().min(1),
   }),
   template: z.strictObject({
     id: templateIdSchema,
@@ -114,7 +127,14 @@ export function normalizeShotState(state: ShotState): NormalizedShotSpec {
     };
   });
   return normalizedShotSpecSchema.parse({
-    state: { id: validated.id, schemaVersion: validated.schemaVersion },
+    state: {
+      id: validated.id,
+      schemaVersion: validated.schemaVersion,
+      // Taken over the canonically-ordered content so states differing only
+      // in character array order (identical compiled prompts) share one
+      // fingerprint.
+      stateFingerprint: shotStateFingerprint(withCanonicalCharacterOrder(validated)),
+    },
     template: { ...validated.template },
     scene: { presetId: validated.scene.presetId },
     aspectRatio: validated.aspectRatio,
